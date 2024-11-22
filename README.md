@@ -79,7 +79,7 @@ Export STL files using either a CSV or JSON parameter file.
 **Command Structure:**
 
 ```
-openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad_path PATH] [--export_format asciistl|binstl]
+openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad_path PATH] [--export_format asciistl|binstl] [--select SELECTION]
 ```
 
 **Parameters:**
@@ -92,28 +92,87 @@ openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad_
 
 - `--openscad_path`: Path to the OpenSCAD executable. Defaults to `"openscad"` assuming it is in PATH.
 - `--export_format`: Export format, either `asciistl` or `binstl`. Defaults to `binstl`.
+- `--select SELECTION`: Select specific parameter sets to export using indices and ranges. Format examples: `'0-5'`, `'1-3,7,10-12'`, `'2,4'`. Indices are zero-based.
 
-**Example with CSV:**
+**Examples:**
 
-```
-openscad-export export examples/simpleCube/simpleCube.scad examples/simpleCube/simpleCube.csv output_stls
-```
+- **Export with CSV:**
 
-**Example with JSON:**
+    ```
+    openscad-export export examples/simpleCube/simpleCube.scad examples/simpleCube/simpleCube.csv output_stls
+    ```
 
-First, convert the CSV file to JSON:
+- **Export with JSON:**
 
-```
-openscad-export csv2json examples/simpleCube/simpleCube.csv examples/simpleCube/simpleCube.json
-```
+    First, convert the CSV file to JSON:
 
-Then, use the JSON file for export:
+    ```
+    openscad-export csv2json examples/simpleCube/simpleCube.csv examples/simpleCube/simpleCube.json
+    ```
 
-```
-openscad-export export examples/simpleCube/simpleCube.scad examples/simpleCube/simpleCube.json output_stls
-```
+    Then, use the JSON file for export:
 
-This will generate STL files for each set of parameters in the specified file and save them in the `output_stls` folder.
+    ```
+    openscad-export export examples/simpleCube/simpleCube.scad examples/simpleCube/simpleCube.json output_stls
+    ```
+
+- **Selective Export:**
+
+    - **Export a Range of Parameter Sets:**
+
+        Export parameter sets from index 0 to 5:
+
+        $$$
+        openscad-export export examples/candleStand/candleStand.scad examples/candleStand/candleStand.csv output_stls --select "0-5"
+        $$$
+
+    - **Export Specific Indices:**
+
+        Export parameter sets at indices 1, 3, and 4:
+
+        $$$
+        openscad-export export examples/sign/sign.scad examples/sign/sign.csv output_stls --select "1,3,4"
+        $$$
+
+    - **Export Multiple Ranges and Specific Indices:**
+
+        Export parameter sets from indices 1 to 3, index 7, and from 10 to 12:
+
+        $$$
+        openscad-export export examples/candleStand/candleStand.scad examples/candleStand/candleStand.csv output_stls --select "1-3,7,10-12"
+        $$$
+
+    - **Export Every Xth Parameter Set in a Range:**
+
+        Export every 2nd parameter set from index 0 to 10:
+
+        $$$
+        openscad-export export examples/candleStand/candleStand.scad examples/candleStand/candleStand.csv output_stls --select "every:2 in 0-10"
+        $$$
+
+    - **Export from a Specific Index Onward:**
+
+        Export all parameter sets from index 5 to the end:
+
+        $$$
+        openscad-export export examples/sign/sign.scad examples/sign/sign.csv output_stls --select "from:5"
+        $$$
+
+    - **Export Up to a Specific Index:**
+
+        Export all parameter sets up to index 4 inclusive:
+
+        $$$
+        openscad-export export examples/simpleCube/simpleCube.scad examples/simpleCube/simpleCube.csv output_stls --select "up_to:4"
+        $$$
+
+    - **Combine Multiple Selection Methods:**
+
+        Export parameter sets from index 0 to 2, every 3rd set from 5 to 15, and index 20:
+
+        $$$
+        openscad-export export examples/candleStand/candleStand.scad examples/candleStand/candleStand.csv output_stls --select "0-2, every:3 in 5-15,20"
+        $$$
 
 ### 2. Convert Between CSV and JSON
 
@@ -194,7 +253,7 @@ The JSON file should follow the structure used by OpenSCAD's customizer profiles
 
 ## OpenSCAD File Structure
 
-The OpenSCAD file must define a module that uses parameters from the parameter file. For example:
+The OpenSCAD file must define a model that uses parameters from the parameter file. For example:
 
 **Example OpenSCAD file (`simpleCube.scad`):**
 
@@ -202,7 +261,6 @@ The OpenSCAD file must define a module that uses parameters from the parameter f
 module model() { cube([width, height, depth]); }
 ```
 
-The script will call this module with the parameters defined in each row of the CSV file or each parameter set in the JSON file.
 
 ## Example Files
 

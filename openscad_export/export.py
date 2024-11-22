@@ -38,6 +38,22 @@ def parse_arguments():
         default="binstl",
         help="Export format: asciistl or binstl. Defaults to binstl.",
     )
+    export_parser.add_argument(
+        "--select",
+        type=str,
+        default=None,
+        help=(
+            "Select specific parameter sets to export using indices and ranges. "
+            "Supported formats: "
+            "'0-5' (range), '1-3,7,10-12' (multiple ranges and indices), "
+            "'2,4' (specific indices), "
+            "'every:2 in 0-10' (every 2nd index in range), "
+            "'from:5' (from index 5 onward), "
+            "'up_to:4' (up to index 4 inclusive). "
+            "You can combine multiple selections separated by commas. "
+            "Indices are zero-based."
+        ),
+    )
 
     # csv2json subcommand
     csv2json_parser = subparsers.add_parser(
@@ -78,6 +94,92 @@ def read_json(json_path):
 def ensure_output_folder(folder):
     if not os.path.exists(folder):
         os.makedirs(folder)
+
+
+def parse_selection(selection_str, total_params):
+    """
+    Parses a selection string and returns a sorted list of unique indices.
+
+    Args:
+        selection_str (str): Selection string (e.g., "0-5,7,10-12, every:2 in 0-10, from:15, up_to:20").
+        total_params (int): Total number of parameter sets.
+
+    Returns:
+        List[int]: Sorted list of unique selected indices.
+
+    Raises:
+        ValueError: If the selection string is invalid.
+    """
+    selected_indices = set()
+    parts = selection_str.split(",")
+    for part in parts:
+        part = part.strip()
+        if not part:
+            continue
+        if part.startswith("every:"):
+            try:
+                _, rest = part.split(":", 1)
+                step, range_part = rest.split(" in ")
+                step = int(step)
+                start, end = map(int, range_part.split("-"))
+                if start > end:
+                    raise ValueError(f"Invalid range '{range_part}': start > end.")
+                for i in range(start, end + 1, step):
+                    if i < 0 or i >= total_params:
+                        raise ValueError(
+                            f"Index {i} out of range (0-{total_params -1})."
+                        )
+                    selected_indices.add(i)
+            except ValueError as ve:
+                raise ValueError(f"Invalid step selection '{part}': {ve}")
+        elif part.startswith("from:"):
+            try:
+                _, start_str = part.split(":", 1)
+                start = int(start_str)
+                if start < 0 or start >= total_params:
+                    raise ValueError(
+                        f"Start index {start} out of range (0-{total_params -1})."
+                    )
+                for i in range(start, total_params):
+                    selected_indices.add(i)
+            except ValueError as ve:
+                raise ValueError(f"Invalid 'from' selection '{part}': {ve}")
+        elif part.startswith("up_to:"):
+            try:
+                _, end_str = part.split(":", 1)
+                end = int(end_str)
+                if end < 0 or end >= total_params:
+                    raise ValueError(
+                        f"End index {end} out of range (0-{total_params -1})."
+                    )
+                for i in range(0, end + 1):
+                    selected_indices.add(i)
+            except ValueError as ve:
+                raise ValueError(f"Invalid 'up_to' selection '{part}': {ve}")
+        elif "-" in part:
+            try:
+                start, end = map(int, part.split("-"))
+                if start > end:
+                    raise ValueError(f"Invalid range '{part}': start > end.")
+                for i in range(start, end + 1):
+                    if i < 0 or i >= total_params:
+                        raise ValueError(
+                            f"Index {i} out of range (0-{total_params -1})."
+                        )
+                    selected_indices.add(i)
+            except ValueError as ve:
+                raise ValueError(f"Invalid range '{part}': {ve}")
+        else:
+            try:
+                index = int(part)
+                if index < 0 or index >= total_params:
+                    raise ValueError(
+                        f"Index {index} out of range (0-{total_params -1})."
+                    )
+                selected_indices.add(index)
+            except ValueError as ve:
+                raise ValueError(f"Invalid index '{part}': {ve}")
+    return sorted(selected_indices)
 
 
 def construct_d_flags(params):
@@ -135,7 +237,7 @@ def export_stl(openscad_path, scad_file, output_file, export_format, d_flags):
 
 
 def batch_export(
-    scad_file, parameter_file, output_folder, openscad_path, export_format
+    scad_file, parameter_file, output_folder, openscad_path, export_format, selection
 ):
     # Determine parameter file type based on extension
     _, ext = os.path.splitext(parameter_file)
@@ -150,7 +252,20 @@ def batch_export(
 
     ensure_output_folder(output_folder)
 
-    for idx, param_set in enumerate(parameters, start=1):
+    total_params = len(parameters)
+    selected_indices = None
+    if selection:
+        try:
+            selected_indices = parse_selection(selection, total_params)
+            print(f"Selected parameter set indices: {selected_indices}")
+        except ValueError as ve:
+            print(f"Selection parsing error: {ve}")
+            sys.exit(1)
+
+    for idx, param_set in enumerate(parameters):
+        if selected_indices is not None and idx not in selected_indices:
+            continue  # Skip non-selected parameter sets
+
         filename = param_set.get("exported_filename", f"model_{idx}")
         output_file = os.path.join(output_folder, f"{filename}.stl")
 
@@ -232,6 +347,7 @@ def main():
             args.output_folder,
             args.openscad_path,
             args.export_format,
+            args.select,
         )
     elif args.command == "csv2json":
         csv_to_json(args.csv_file, args.json_file)

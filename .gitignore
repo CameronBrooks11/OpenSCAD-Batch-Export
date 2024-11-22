@@ -1,0 +1,133 @@
+# -----------------------------
+# General system/OS files
+# -----------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# -----------------------------
+# Python
+# -----------------------------
+# Byte-compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+env/
+venv/
+ENV/
+VENV/
+pip-selfcheck.json
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# pytest
+.cache/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Coverage reports
+htmlcov/
+.coverage
+*.cover
+*.py,cover
+
+# Sphinx documentation
+docs/_build/
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# -----------------------------
+# OpenSCAD
+# -----------------------------
+# Temporary SCAD files
+*.csg
+*.dxf
+*.off
+*.amf
+*.3mf
+*.wrl
+*.stl
+*.ast
+*.nefdbg
+
+# Rendered output files
+output_*.png
+
+# -----------------------------
+# IDE/Editor files
+# -----------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# -----------------------------
+# OS-specific
+# -----------------------------
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+.Trash-*
+
+# -----------------------------
+# Logs
+# -----------------------------
+*.log
+*.log.*
+
+# -----------------------------
+# Git-specific
+# -----------------------------
+*.orig
+*.rej
+*.bak
+*.old
+*.sublime-workspace
+
+# Merge resolution backup
+*.BACKUP.*
+*.BASE.*
+*.LOCAL.*
+*.REMOTE.*
+
+# -----------------------------
+# Temporary files
+# -----------------------------
+*.tmp
+*.temp
+*.~lock.*
+
+# -----------------------------
+# Build artifacts
+# -----------------------------
+dist/
+build/
+*.egg-info/
+.eggs/
+MANIFEST
+
+# -----------------------------
+# Other
+# -----------------------------
+# Ignore user-generated output folders
+output_stls/
+output/
+exported/

@@ -1,0 +1,4 @@
+exported_filename,width,height,depth
+cube_small,10,10,10
+cube_medium,20,20,20
+cube_large,30,30,30

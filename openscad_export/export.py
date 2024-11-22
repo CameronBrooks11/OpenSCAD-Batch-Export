@@ -76,6 +76,11 @@ def parse_arguments():
     json2csv_parser.add_argument("json_file", help="Path to the JSON file.")
     json2csv_parser.add_argument("csv_file", help="Path to the output CSV file.")
 
+    # GUI subcommand
+    gui_parser = subparsers.add_parser(
+        "gui", help="Launch the graphical user interface."
+    )
+
     return parser.parse_args()
 
 
@@ -250,7 +255,13 @@ def export_stl(openscad_path, scad_file, output_file, export_format, d_flags):
 
 
 def batch_export(
-    scad_file, parameter_file, output_folder, openscad_path, export_format, selection, sequential
+    scad_file,
+    parameter_file,
+    output_folder,
+    openscad_path,
+    export_format,
+    selection,
+    sequential,
 ):
     # Determine parameter file type based on extension
     _, ext = os.path.splitext(parameter_file)
@@ -324,7 +335,9 @@ def batch_export(
             else:
                 failures.append((output_file, error))
                 export_times.append(duration)
-                print(f"Error exporting {output_file}: {error} (Time: {duration:.2f} seconds)")
+                print(
+                    f"Error exporting {output_file}: {error} (Time: {duration:.2f} seconds)"
+                )
     else:
         print("Running exports in parallel.")
         # Use ThreadPoolExecutor for I/O-bound operations
@@ -332,7 +345,10 @@ def batch_export(
             # Prepare iterable of (index, param_set)
             iterable = enumerate(parameters)
             # Submit all tasks
-            future_to_export = {executor.submit(process_export, idx_param): idx_param for idx_param in iterable}
+            future_to_export = {
+                executor.submit(process_export, idx_param): idx_param
+                for idx_param in iterable
+            }
 
             for future in concurrent.futures.as_completed(future_to_export):
                 result = future.result()
@@ -346,7 +362,9 @@ def batch_export(
                 elif status == "failure":
                     failures.append(info)
                     export_times.append(duration)
-                    print(f"Error exporting {info[0]}: {info[1]} (Time: {duration:.2f} seconds)")
+                    print(
+                        f"Error exporting {info[0]}: {info[1]} (Time: {duration:.2f} seconds)"
+                    )
 
     total_end_time = time.perf_counter()
     total_duration = total_end_time - total_start_time
@@ -442,6 +460,16 @@ def main():
         csv_to_json(args.csv_file, args.json_file)
     elif args.command == "json2csv":
         json_to_csv(args.json_file, args.csv_file)
+    elif args.command == "gui":
+        try:
+            from . import gui  # Relative import
+
+            gui.main()
+        except ImportError:
+            print(
+                "GUI module not found. Please ensure 'gui.py' is part of the 'openscad_export' package."
+            )
+            sys.exit(1)
 
 
 if __name__ == "__main__":

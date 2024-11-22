@@ -231,9 +231,10 @@ def export_stl(openscad_path, scad_file, output_file, export_format, d_flags):
         subprocess.run(
             command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
-        print(f"Exported: {output_file}")
+        return True, ""
     except subprocess.CalledProcessError as e:
-        print(f"Error exporting {output_file}: {e.stderr.decode()}")
+        error_message = e.stderr.decode().strip()
+        return False, error_message
 
 
 def batch_export(
@@ -262,6 +263,9 @@ def batch_export(
             print(f"Selection parsing error: {ve}")
             sys.exit(1)
 
+    successes = []
+    failures = []
+
     for idx, param_set in enumerate(parameters):
         if selected_indices is not None and idx not in selected_indices:
             continue  # Skip non-selected parameter sets
@@ -273,9 +277,28 @@ def batch_export(
         d_flags = construct_d_flags(param_set)
 
         # Export STL using OpenSCAD with -D flags
-        export_stl(openscad_path, scad_file, output_file, export_format, d_flags)
+        success, error = export_stl(
+            openscad_path, scad_file, output_file, export_format, d_flags
+        )
+        if success:
+            successes.append(output_file)
+            print(f"Exported: {output_file}")
+        else:
+            failures.append((output_file, error))
+            print(f"Error exporting {output_file}: {error}")
 
-    print("Batch export completed.")
+    print("\nBatch export completed.")
+    print(f"Total exports attempted: {len(successes) + len(failures)}")
+    print(f"Successful exports: {len(successes)}")
+    if successes:
+        print("Successfully exported files:")
+        for file in successes:
+            print(f"  - {file}")
+    print(f"Failed exports: {len(failures)}")
+    if failures:
+        print("Failed to export the following files:")
+        for file, error in failures:
+            print(f"  - {file}: {error}")
 
 
 def csv_to_json(csv_file, json_file):

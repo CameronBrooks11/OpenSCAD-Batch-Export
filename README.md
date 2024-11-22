@@ -235,6 +235,7 @@ The `examples/` directory contains multiple projects demonstrating how to use th
 A basic example of a customizable cube with varying dimensions.  
 
 **Files:**  
+
 - `examples/simpleCube/simpleCube.scad`  
 - `examples/simpleCube/simpleCube.csv`  
 - `examples/simpleCube/simpleCube.json`
@@ -244,6 +245,7 @@ A basic example of a customizable cube with varying dimensions.
 A more complex model featuring a candle stand with options for customization from the [OpenSCAD Parametric Examples](https://github.com/openscad/openscad/tree/master/examples/Parametric).  
 
 **Files:**  
+
 - `examples/candleStand/candleStand.scad`  
 - `examples/candleStand/candleStand.csv`  
 - `examples/candleStand/candleStand.json`
@@ -253,6 +255,7 @@ A more complex model featuring a candle stand with options for customization fro
 A customizable sign with adjustable message, size, and resolution parameters from the [OpenSCAD Parametric Examples](https://github.com/openscad/openscad/tree/master/examples/Parametric).
 
 **Files:**  
+
 - `examples/sign/sign.scad`  
 - `examples/sign/sign.csv`  
 - `examples/sign/sign.json`

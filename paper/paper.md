@@ -22,7 +22,7 @@ bibliography: paper.bib
 
 # Summary
 
-The OpenSCAD Batch Exporter is an open-source tool designed to automate the generation of STL models using parametric designs in OpenSCAD. By leveraging parameter files in CSV or JSON format, the tool simplifies the creation of multiple design variations, making it invaluable for research, prototyping, and engineering. Users can rapidly generate tailored design sets, allowing for applications such as experimental analysis, mass customization, and combinatorial design testing. 
+The OpenSCAD Batch Exporter is an open-source tool designed to automate the generation of STL models using parametric designs in OpenSCAD. By leveraging parameter files in CSV or JSON format, the tool simplifies the creation of multiple design variations, making it invaluable for research, prototyping, and engineering. Users can rapidly generate tailored design sets, allowing for applications such as experimental analysis, mass customization, and combinatorial design testing.
 
 This tool addresses critical pain points in research and engineering workflows, such as the need to manually create or export designs from code-based CAD systems. By offering batch exporting capabilities, it supports efficient testing and analysis, promotes the use of parametric models in low-resource environments, and reduces bandwidth requirements by allowing compact script distribution instead of large 3D model files.
 
@@ -32,7 +32,7 @@ Inspired by community contributions and existing batch exporting tools, this pro
 
 Parametric design tools like OpenSCAD enable researchers and engineers to create highly customizable 3D models. However, exporting multiple designs based on varied parameter sets can be time-consuming and error-prone. The OpenSCAD Batch Exporter automates this process, enabling rapid generation of design variants, which is critical for:
 
-1. **Research Applications**: 
+1. **Research Applications**:
    - Supports iterative experimental setups, such as those used in agrivoltaics, chemical synthesis, and hardware prototyping [@Pearce2021; @Hou2020; @Brooks2022].
    - Allows researchers to optimize designs by testing numerous parameter variations without manual intervention.
 
@@ -49,6 +49,7 @@ This tool significantly extends the usability of OpenSCAD, making it easier for 
 # Functionality
 
 The OpenSCAD Batch Exporter allows users to:
+
 - Batch export models using parameter files (CSV or JSON).
 - Select specific parameter ranges or combinations for targeted exports.
 - Convert between CSV and JSON formats for interoperability.
@@ -59,6 +60,7 @@ A command-line interface and an intuitive graphical user interface (GUI) make th
 # Related Work
 
 This tool builds on efforts by the OpenSCAD community to streamline batch exporting [@openscadWiki; @Pinshape]. It integrates and improves upon existing approaches, notably:
+
 - [OpenSCAD Batch Export STL](https://github.com/18107/OpenSCAD-batch-export-stl)
 - [OpenSCAD Bulk Export](https://github.com/OutwardBuckle/OpenSCAD-Bulk-Export)
 

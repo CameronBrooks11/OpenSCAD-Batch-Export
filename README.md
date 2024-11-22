@@ -1,6 +1,6 @@
 # OpenSCAD-Batch-Exporter
 
-This repository provides a tool to automate the export of STL models from OpenSCAD using a CSV file of parameters. It is a simple and user-friendly solution for batch exporting models with different parameter sets. Inspired by:
+This repository provides a tool to automate the export of STL models from OpenSCAD using CSV or JSON files of parameters. It is a simple and user-friendly solution for batch exporting models with different parameter sets. Inspired by:
 
 [18107/OpenSCAD-batch-export-stl](https://github.com/18107/OpenSCAD-batch-export-stl)
 
@@ -8,9 +8,11 @@ This repository provides a tool to automate the export of STL models from OpenSC
 
 ## Features
 
-- Batch export STL files with parameters defined in a CSV file.
+- Batch export STL files with parameters defined in CSV or JSON files.
+- Convert between CSV and JSON parameter files.
 - Easy-to-use command-line interface.
-- Includes example files to get started.
+- Handles boolean, numeric, and string parameter types correctly.
+- Includes multiple example projects to get started.
 
 ## Requirements
 
@@ -19,81 +21,222 @@ This repository provides a tool to automate the export of STL models from OpenSC
 
 ## Installation
 
-1. Clone the repository:
+1. **Clone the repository:**
 
-```git clone https://github.com/CameronBrooks11/OpenSCAD-Batch-Exporter.git cd OpenSCAD-Batch-Exporter```
+    ```
+    git clone https://github.com/CameronBrooks11/OpenSCAD-Batch-Exporter.git
+    ```
 
-2. Install the Python lib:
+    ```
+    cd OpenSCAD-Batch-Exporter
+    ```
 
-```pip install .```
+2. **Install the Python library:**
 
-3. Ensure OpenSCAD is installed and accessible from the command line. Add it to your PATH if necessary.
+    ```
+    pip install .
+    ```
 
-4. If you encounter the following warning:
+3. **Ensure OpenSCAD is installed and accessible from the command line. Add it to your PATH if necessary.**
 
-```
-WARNING: The script openscad-export.exe is installed in 'C:\Users\<YourUserName>\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_<somenumbers>\LocalCache\local-packages\Python311\Scripts' which is not on PATH.
-Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
-```
+4. **If you encounter the following warning:**
 
-You can resolve it by adding the directory returned by:
+    ```
+    WARNING: The script openscad-export.exe is installed in 'C:\Users\<YourUserName>\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_<somenumbers>\LocalCache\local-packages\Python311\Scripts' which is not on PATH.
+    Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+    ```
 
-```python -m site --user-base```
+    **You can resolve it by adding the directory returned by:**
 
-Append the Scripts subdirectory of the output path to your system's PATH. For example:
+    ```
+    python -m site --user-base
+    ```
 
-```C:\Users\<YourUserName>\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_<somenumbers>\LocalCache\local-packages\Python311\Scripts```
+    **Append the Scripts subdirectory of the output path to your system's PATH. For example:**
 
-5. To modify the tool, reinstall it after making changes:
+    ```
+    C:\Users\<YourUserName>\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_<somenumbers>\LocalCache\local-packages\Python311\Scripts
+    ```
 
-```pip install --upgrade .```
+5. **To modify the tool, reinstall it after making changes:**
+
+    ```
+    pip install --upgrade .
+    ```
 
 ## Usage
 
-Once installed, the tool can be called from anywhere:
+Once installed, the tool can be called from anywhere using the `openscad-export` command. The tool provides three subcommands:
 
-```openscad-export <scad_file> <csv_file> <output_folder>```
+1. **Export STL Files**
+2. **Convert CSV to JSON**
+3. **Convert JSON to CSV**
 
-### Example
+### 1. Export STL Files
 
-To use the provided example files:
+Export STL files using either a CSV or JSON parameter file.
 
-1. Navigate to the repository folder:
+**Command Structure:**
 
-```cd OpenSCAD-Batch-Exporter```
+```
+openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad_path PATH] [--export_format asciistl|binstl]
+```
 
-2. Run the export script:
+**Parameters:**
 
-```openscad-export examples/example.scad examples/parameters.csv output_stls```
+- `<scad_file>`: Path to the OpenSCAD `.scad` file.
+- `<parameter_file>`: Path to the CSV or JSON file containing parameters.
+- `<output_folder>`: Directory where STL files will be saved.
 
-This will generate STL files for each set of parameters in the CSV file and save them in the `output_stls` folder.
+**Options:**
 
-### CSV File Structure
+- `--openscad_path`: Path to the OpenSCAD executable. Defaults to `"openscad"` assuming it is in PATH.
+- `--export_format`: Export format, either `asciistl` or `binstl`. Defaults to `binstl`.
+
+**Example with CSV:**
+
+```
+openscad-export export examples/simpleCube/simpleCube.scad examples/simpleCube/simpleCube.csv output_stls
+```
+
+**Example with JSON:**
+
+First, convert the CSV file to JSON:
+
+```
+openscad-export csv2json examples/simpleCube/simpleCube.csv examples/simpleCube/simpleCube.json
+```
+
+Then, use the JSON file for export:
+
+```
+openscad-export export examples/simpleCube/simpleCube.scad examples/simpleCube/simpleCube.json output_stls
+```
+
+This will generate STL files for each set of parameters in the specified file and save them in the `output_stls` folder.
+
+### 2. Convert Between CSV and JSON
+
+#### Convert CSV to JSON
+
+Convert a CSV parameter file to JSON format compatible with OpenSCAD's customizer.
+
+**Command Structure:**
+
+```
+openscad-export csv2json <csv_file> <json_file>
+```
+
+**Example:**
+
+```
+openscad-export csv2json examples/candleStand/candleStand.csv examples/candleStand/candleStand.json
+```
+
+#### Convert JSON to CSV
+
+Convert a JSON parameter file back to CSV format.
+
+**Command Structure:**
+
+```
+openscad-export json2csv <json_file> <csv_file>
+```
+
+**Example:**
+
+```
+openscad-export json2csv examples/sign/sign.json examples/sign/sign_converted.csv
+```
+
+## CSV File Structure
 
 - The CSV file should have a header row with parameter names.
 - Each subsequent row defines a set of parameters for the OpenSCAD model.
 - A column named `exported_filename` is required to specify the output filenames.
 
-Example CSV file:
+**Example CSV file (`simpleCube.csv`):**
 
-| exported_filename | width | height | depth |
-|--------------------|-------|--------|-------|
-| cube_small         | 10    | 10     | 10    |
-| cube_medium        | 20    | 20     | 20    |
-| cube_large         | 30    | 30     | 30    |
+| exported_filename | depth | height | width |
+|-------------------|-------|--------|-------|
+| cube_small        | 10    | 10     | 10    |
+| cube_medium       | 20    | 20     | 20    |
+| cube_large        | 30    | 30     | 30    |
 
-### OpenSCAD File Structure
+## JSON File Structure
 
-The OpenSCAD file must define a module (e.g., `model`) that uses parameters from the CSV file. For example:
+The JSON file should follow the structure used by OpenSCAD's customizer profiles. It should contain a `parameterSets` object, where each key is the `exported_filename` and its value is a dictionary of parameters.
 
-```module model() { cube([width, height, depth]); }```
+**Example JSON file (`simpleCube.json`):**
 
-The script will call this module with the parameters defined in each row of the CSV file.
+```
+{
+    "parameterSets": {
+        "cube_small": {
+            "width": "10",
+            "height": "10",
+            "depth": "10"
+        },
+        "cube_medium": {
+            "width": "20",
+            "height": "20",
+            "depth": "20"
+        },
+        "cube_large": {
+            "width": "30",
+            "height": "30",
+            "depth": "30"
+        }
+    },
+    "fileFormatVersion": "1"
+}
+```
+
+## OpenSCAD File Structure
+
+The OpenSCAD file must define a module that uses parameters from the parameter file. For example:
+
+**Example OpenSCAD file (`simpleCube.scad`):**
+
+```
+module model() { cube([width, height, depth]); }
+```
+
+The script will call this module with the parameters defined in each row of the CSV file or each parameter set in the JSON file.
 
 ## Example Files
 
-- `example.scad`: A sample OpenSCAD file defining a customizable cube.
-- `parameters.csv`: A CSV file with parameters for exporting different cubes.
+The `examples/` directory contains multiple projects demonstrating how to use the exporter with different OpenSCAD models.
+
+### 1. Simple Cube
+
+- **Files:**
+  - `examples/simpleCube/simpleCube.scad`
+  - `examples/simpleCube/simpleCube.json`
+  - `examples/simpleCube/simpleCube.csv`
+
+- **Description:**
+  A basic example of a customizable cube with varying dimensions.
+
+### 2. Candle Stand
+
+- **Files:**
+  - `examples/candleStand/candleStand.scad`
+  - `examples/candleStand/candleStand.json`
+  - `examples/candleStand/candleStand.csv`
+
+- **Description:**
+  A more complex model featuring a candle stand with options for center candles, number of holders, and support structures.
+
+### 3. Sign
+
+- **Files:**
+  - `examples/sign/sign.scad`
+  - `examples/sign/sign.json`
+  - `examples/sign/sign.csv`
+
+- **Description:**
+  An example of a customizable sign with adjustable message, size, and resolution parameters.
 
 ## Contributing
 
@@ -101,4 +244,4 @@ Contributions are welcome! Please open an issue or submit a pull request with im
 
 ## License
 
-This project is licensed under the MIT License. See the LICENSE file for details.
+This project is licensed under the AGPL v3 License. See the LICENSE file for details.

@@ -1,0 +1,5 @@
+exported_filename,CenterCandleWidth,candleSize,centerCandle,count,heightOfRing,heightOfSupport,holeSize,length,radius,width,widthOfRing,widthOfSupport
+Medium Size,6,9,true,7,4,3,3,50,25,5,23,3
+small,4,6,true,7,2,2,2,30,16,4,13,2
+With Ball,7,6,false,5,2,2,2,30,16,4,13,2
+Large,10,9,false,7,4,3,3,70,25,5,23,3

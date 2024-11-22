@@ -1,0 +1,20 @@
+{
+    "parameterSets": {
+        "cube_small": {
+            "width": "10",
+            "height": "10",
+            "depth": "10"
+        },
+        "cube_medium": {
+            "width": "20",
+            "height": "20",
+            "depth": "20"
+        },
+        "cube_large": {
+            "width": "30",
+            "height": "30",
+            "depth": "30"
+        }
+    },
+    "fileFormatVersion": "1"
+}

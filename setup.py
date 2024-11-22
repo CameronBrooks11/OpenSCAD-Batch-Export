@@ -2,15 +2,15 @@ from setuptools import setup, find_packages
 
 setup(
     name="openscad-batch-export",
-    version="1.0.0",
-    description="Batch export STL files from OpenSCAD using CSV parameters.",
+    version="1.1.0",
+    description="Batch export STL files from OpenSCAD using CSV or JSON parameters, and convert between CSV and JSON.",
     author="Cameron K. Brooks",
     author_email="cambrooks3393@gmail.com",
     url="https://github.com/yourusername/OpenSCAD-Batch-Export",
     packages=find_packages(),
     entry_points={
         "console_scripts": [
-            "openscad-export=openscad_export.export:batch_export",
+            "openscad-export=openscad_export.export:main",
         ],
     },
     classifiers=[

@@ -122,57 +122,57 @@ openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad_
 
         Export parameter sets from index 0 to 5:
 
-        $$$
+        ```
         openscad-export export examples/candleStand/candleStand.scad examples/candleStand/candleStand.csv output_stls --select "0-5"
-        $$$
+        ```
 
     - **Export Specific Indices:**
 
         Export parameter sets at indices 1, 3, and 4:
 
-        $$$
+        ```
         openscad-export export examples/sign/sign.scad examples/sign/sign.csv output_stls --select "1,3,4"
-        $$$
+        ```
 
     - **Export Multiple Ranges and Specific Indices:**
 
         Export parameter sets from indices 1 to 3, index 7, and from 10 to 12:
 
-        $$$
+        ```
         openscad-export export examples/candleStand/candleStand.scad examples/candleStand/candleStand.csv output_stls --select "1-3,7,10-12"
-        $$$
+        ```
 
     - **Export Every Xth Parameter Set in a Range:**
 
         Export every 2nd parameter set from index 0 to 10:
 
-        $$$
+        ```
         openscad-export export examples/candleStand/candleStand.scad examples/candleStand/candleStand.csv output_stls --select "every:2 in 0-10"
-        $$$
+        ```
 
     - **Export from a Specific Index Onward:**
 
         Export all parameter sets from index 5 to the end:
 
-        $$$
+        ```
         openscad-export export examples/sign/sign.scad examples/sign/sign.csv output_stls --select "from:5"
-        $$$
+        ```
 
     - **Export Up to a Specific Index:**
 
         Export all parameter sets up to index 4 inclusive:
 
-        $$$
+        ```
         openscad-export export examples/simpleCube/simpleCube.scad examples/simpleCube/simpleCube.csv output_stls --select "up_to:4"
-        $$$
+        ```
 
     - **Combine Multiple Selection Methods:**
 
         Export parameter sets from index 0 to 2, every 3rd set from 5 to 15, and index 20:
 
-        $$$
+        ```
         openscad-export export examples/candleStand/candleStand.scad examples/candleStand/candleStand.csv output_stls --select "0-2, every:3 in 5-15,20"
-        $$$
+        ```
 
 ### 2. Convert Between CSV and JSON
 

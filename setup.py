@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="openscad-batch-export",
-    version="1.3.0",
+    version="1.4.0",
     description="Batch export STL files from OpenSCAD using CSV or JSON parameters, and convert between CSV and JSON.",
     author="Cameron K. Brooks",
     author_email="cambrooks3393@gmail.com",

@@ -7,6 +7,7 @@ import subprocess
 import argparse
 import sys
 import concurrent.futures
+import time
 
 
 def parse_arguments():
@@ -54,6 +55,11 @@ def parse_arguments():
             "You can combine multiple selections separated by commas. "
             "Indices are zero-based."
         ),
+    )
+    export_parser.add_argument(
+        "--sequential",
+        action="store_true",
+        help="Disable parallel processing and export sequentially.",
     )
 
     # csv2json subcommand
@@ -217,6 +223,7 @@ def construct_d_flags(params):
 
 
 def export_stl(openscad_path, scad_file, output_file, export_format, d_flags):
+    start_time = time.perf_counter()
     command = (
         [
             openscad_path,
@@ -232,14 +239,18 @@ def export_stl(openscad_path, scad_file, output_file, export_format, d_flags):
         subprocess.run(
             command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
-        return True, ""
+        end_time = time.perf_counter()
+        duration = end_time - start_time
+        return True, "", duration
     except subprocess.CalledProcessError as e:
         error_message = e.stderr.decode().strip()
-        return False, error_message
+        end_time = time.perf_counter()
+        duration = end_time - start_time
+        return False, error_message, duration
 
 
 def batch_export(
-    scad_file, parameter_file, output_folder, openscad_path, export_format, selection
+    scad_file, parameter_file, output_folder, openscad_path, export_format, selection, sequential
 ):
     # Determine parameter file type based on extension
     _, ext = os.path.splitext(parameter_file)
@@ -266,8 +277,10 @@ def batch_export(
 
     successes = []
     failures = []
+    export_times = []
+    total_start_time = time.perf_counter()
 
-    # Define a helper function for parallel execution
+    # Define a helper function for processing
     def process_export(idx_param):
         idx, param_set = idx_param
         if selected_indices is not None and idx not in selected_indices:
@@ -280,31 +293,63 @@ def batch_export(
         d_flags = construct_d_flags(param_set)
 
         # Export STL using OpenSCAD with -D flags
-        success, error = export_stl(
+        success, error, duration = export_stl(
             openscad_path, scad_file, output_file, export_format, d_flags
         )
         if success:
-            return ("success", output_file)
+            return ("success", output_file, duration)
         else:
-            return ("failure", (output_file, error))
+            return ("failure", (output_file, error), duration)
 
-    # Use ThreadPoolExecutor for I/O-bound operations
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        # Prepare iterable of (index, param_set)
-        iterable = enumerate(parameters)
-        # Map the helper function to the executor
-        results = executor.map(process_export, iterable)
+    if sequential:
+        print("Running exports sequentially.")
+        for idx, param_set in enumerate(parameters):
+            if selected_indices is not None and idx not in selected_indices:
+                continue  # Skip non-selected parameter sets
 
-        for result in results:
-            if result is None:
-                continue  # Skipped parameter set
-            status, info = result
-            if status == "success":
-                successes.append(info)
-                print(f"Exported: {info}")
-            elif status == "failure":
-                failures.append(info)
-                print(f"Error exporting {info[0]}: {info[1]}")
+            filename = param_set.get("exported_filename", f"model_{idx}")
+            output_file = os.path.join(output_folder, f"{filename}.stl")
+
+            # Construct -D flags
+            d_flags = construct_d_flags(param_set)
+
+            # Export STL using OpenSCAD with -D flags
+            success, error, duration = export_stl(
+                openscad_path, scad_file, output_file, export_format, d_flags
+            )
+            if success:
+                successes.append(output_file)
+                export_times.append(duration)
+                print(f"Exported: {output_file} in {duration:.2f} seconds.")
+            else:
+                failures.append((output_file, error))
+                export_times.append(duration)
+                print(f"Error exporting {output_file}: {error} (Time: {duration:.2f} seconds)")
+    else:
+        print("Running exports in parallel.")
+        # Use ThreadPoolExecutor for I/O-bound operations
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            # Prepare iterable of (index, param_set)
+            iterable = enumerate(parameters)
+            # Submit all tasks
+            future_to_export = {executor.submit(process_export, idx_param): idx_param for idx_param in iterable}
+
+            for future in concurrent.futures.as_completed(future_to_export):
+                result = future.result()
+                if result is None:
+                    continue  # Skipped parameter set
+                status, info, duration = result
+                if status == "success":
+                    successes.append(info)
+                    export_times.append(duration)
+                    print(f"Exported: {info} in {duration:.2f} seconds.")
+                elif status == "failure":
+                    failures.append(info)
+                    export_times.append(duration)
+                    print(f"Error exporting {info[0]}: {info[1]} (Time: {duration:.2f} seconds)")
+
+    total_end_time = time.perf_counter()
+    total_duration = total_end_time - total_start_time
 
     print("\nBatch export completed.")
     print(f"Total exports attempted: {len(successes) + len(failures)}")
@@ -318,6 +363,7 @@ def batch_export(
         print("Failed to export the following files:")
         for file, error in failures:
             print(f"  - {file}: {error}")
+    print(f"\nTotal time taken: {total_duration:.2f} seconds.")
 
 
 def csv_to_json(csv_file, json_file):
@@ -390,6 +436,7 @@ def main():
             args.openscad_path,
             args.export_format,
             args.select,
+            args.sequential,
         )
     elif args.command == "csv2json":
         csv_to_json(args.csv_file, args.json_file)

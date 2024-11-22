@@ -1,17 +1,17 @@
 # OpenSCAD-Batch-Exporter
 
-This repository provides a tool to automate the export of STL models from OpenSCAD using CSV or JSON files of parameters. It is a simple and user-friendly solution for batch exporting models with different parameter sets. Inspired by:
+This repository provides a tool to automate the export of STL models from OpenSCAD using CSV or JSON files of parameters. It offers a simple and user-friendly solution for batch exporting models with different parameter sets and includes a graphical user interface (GUI) for ease of use. Inspired by:
 
-[18107/OpenSCAD-batch-export-stl](https://github.com/18107/OpenSCAD-batch-export-stl)
-
+[18107/OpenSCAD-batch-export-stl](https://github.com/18107/OpenSCAD-batch-export-stl)  
 [OutwardBuckle/OpenSCAD-Bulk-Export](https://github.com/OutwardBuckle/OpenSCAD-Bulk-Export)
 
 ## Features
 
 - Batch export STL files with parameters defined in CSV or JSON files.
 - Convert between CSV and JSON parameter files.
-- Easy-to-use command-line interface.
+- Easy-to-use command-line interface and GUI.
 - Handles boolean, numeric, and string parameter types correctly.
+- Supports advanced selection options for parameter sets.
 - Includes multiple example projects to get started.
 
 ## Requirements
@@ -66,13 +66,30 @@ This repository provides a tool to automate the export of STL models from OpenSC
 
 ## Usage
 
-Once installed, the tool can be called from anywhere using the `openscad-export` command. The tool provides three subcommands:
+Once installed, the tool can be called from anywhere using the `openscad-export` command. The tool provides three primary modes:
 
 1. **Export STL Files**
 2. **Convert CSV to JSON**
 3. **Convert JSON to CSV**
 
-### 1. Export STL Files
+### Using the GUI
+
+Launch the graphical interface for an intuitive way to configure and perform batch exports. Run the following command:
+
+```
+openscad-export gui
+```
+
+From the GUI, you can:
+
+- Select your `.scad` file, parameter file (CSV or JSON), and output folder.
+- Configure export settings like format, selection range, and sequential processing.
+- Monitor progress and view logs of the operation.
+- Convert between CSV and JSON parameter files.
+
+### Using the CLI
+
+#### 1. Export STL Files
 
 Export STL files using either a CSV or JSON parameter file.
 
@@ -102,81 +119,29 @@ openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad_
     openscad-export export examples/simpleCube/simpleCube.scad examples/simpleCube/simpleCube.csv output_stls
     ```
 
-- **Export with JSON:**
+- **Selective Export:**
 
-    First, convert the CSV file to JSON:
+    Export parameter sets from index 0 to 5:
+
+    ```
+    openscad-export export examples/candleStand/candleStand.scad examples/candleStand/candleStand.csv output_stls --select "0-5"
+    ```
+
+- **Export from JSON:**
+
+    Convert CSV to JSON first:
 
     ```
     openscad-export csv2json examples/simpleCube/simpleCube.csv examples/simpleCube/simpleCube.json
     ```
 
-    Then, use the JSON file for export:
+    Then, export using the JSON file:
 
     ```
     openscad-export export examples/simpleCube/simpleCube.scad examples/simpleCube/simpleCube.json output_stls
     ```
 
-- **Selective Export:**
-
-    - **Export a Range of Parameter Sets:**
-
-        Export parameter sets from index 0 to 5:
-
-        ```
-        openscad-export export examples/candleStand/candleStand.scad examples/candleStand/candleStand.csv output_stls --select "0-5"
-        ```
-
-    - **Export Specific Indices:**
-
-        Export parameter sets at indices 1, 3, and 4:
-
-        ```
-        openscad-export export examples/sign/sign.scad examples/sign/sign.csv output_stls --select "1,3,4"
-        ```
-
-    - **Export Multiple Ranges and Specific Indices:**
-
-        Export parameter sets from indices 1 to 3, index 7, and from 10 to 12:
-
-        ```
-        openscad-export export examples/candleStand/candleStand.scad examples/candleStand/candleStand.csv output_stls --select "1-3,7,10-12"
-        ```
-
-    - **Export Every Xth Parameter Set in a Range:**
-
-        Export every 2nd parameter set from index 0 to 10:
-
-        ```
-        openscad-export export examples/candleStand/candleStand.scad examples/candleStand/candleStand.csv output_stls --select "every:2 in 0-10"
-        ```
-
-    - **Export from a Specific Index Onward:**
-
-        Export all parameter sets from index 5 to the end:
-
-        ```
-        openscad-export export examples/sign/sign.scad examples/sign/sign.csv output_stls --select "from:5"
-        ```
-
-    - **Export Up to a Specific Index:**
-
-        Export all parameter sets up to index 4 inclusive:
-
-        ```
-        openscad-export export examples/simpleCube/simpleCube.scad examples/simpleCube/simpleCube.csv output_stls --select "up_to:4"
-        ```
-
-    - **Combine Multiple Selection Methods:**
-
-        Export parameter sets from index 0 to 2, every 3rd set from 5 to 15, and index 20:
-
-        ```
-        openscad-export export examples/candleStand/candleStand.scad examples/candleStand/candleStand.csv output_stls --select "0-2, every:3 in 5-15,20"
-        ```
-
-### 2. Convert Between CSV and JSON
-
-#### Convert CSV to JSON
+#### 2. Convert CSV to JSON
 
 Convert a CSV parameter file to JSON format compatible with OpenSCAD's customizer.
 
@@ -192,7 +157,7 @@ openscad-export csv2json <csv_file> <json_file>
 openscad-export csv2json examples/candleStand/candleStand.csv examples/candleStand/candleStand.json
 ```
 
-#### Convert JSON to CSV
+#### 3. Convert JSON to CSV
 
 Convert a JSON parameter file back to CSV format.
 
@@ -261,40 +226,36 @@ The OpenSCAD file must define a model that uses parameters from the parameter fi
 module model() { cube([width, height, depth]); }
 ```
 
-
 ## Example Files
 
 The `examples/` directory contains multiple projects demonstrating how to use the exporter with different OpenSCAD models.
 
 ### 1. Simple Cube
 
-- **Files:**
-  - `examples/simpleCube/simpleCube.scad`
-  - `examples/simpleCube/simpleCube.json`
-  - `examples/simpleCube/simpleCube.csv`
+A basic example of a customizable cube with varying dimensions.  
 
-- **Description:**
-  A basic example of a customizable cube with varying dimensions.
+**Files:**  
+- `examples/simpleCube/simpleCube.scad`  
+- `examples/simpleCube/simpleCube.csv`  
+- `examples/simpleCube/simpleCube.json`
 
 ### 2. Candle Stand
 
-- **Files:**
-  - `examples/candleStand/candleStand.scad`
-  - `examples/candleStand/candleStand.json`
-  - `examples/candleStand/candleStand.csv`
+A more complex model featuring a candle stand with options for customization from the [OpenSCAD Parametric Examples](https://github.com/openscad/openscad/tree/master/examples/Parametric).  
 
-- **Description:**
-  A more complex model featuring a candle stand with options for center candles, number of holders, and support structures.
+**Files:**  
+- `examples/candleStand/candleStand.scad`  
+- `examples/candleStand/candleStand.csv`  
+- `examples/candleStand/candleStand.json`
 
 ### 3. Sign
 
-- **Files:**
-  - `examples/sign/sign.scad`
-  - `examples/sign/sign.json`
-  - `examples/sign/sign.csv`
+A customizable sign with adjustable message, size, and resolution parameters from the [OpenSCAD Parametric Examples](https://github.com/openscad/openscad/tree/master/examples/Parametric).
 
-- **Description:**
-  An example of a customizable sign with adjustable message, size, and resolution parameters.
+**Files:**  
+- `examples/sign/sign.scad`  
+- `examples/sign/sign.csv`  
+- `examples/sign/sign.json`
 
 ## Contributing
 

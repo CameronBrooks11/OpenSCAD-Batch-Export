@@ -6,6 +6,7 @@ import json
 import subprocess
 import argparse
 import sys
+import concurrent.futures
 
 
 def parse_arguments():
@@ -266,9 +267,11 @@ def batch_export(
     successes = []
     failures = []
 
-    for idx, param_set in enumerate(parameters):
+    # Define a helper function for parallel execution
+    def process_export(idx_param):
+        idx, param_set = idx_param
         if selected_indices is not None and idx not in selected_indices:
-            continue  # Skip non-selected parameter sets
+            return None  # Skip non-selected parameter sets
 
         filename = param_set.get("exported_filename", f"model_{idx}")
         output_file = os.path.join(output_folder, f"{filename}.stl")
@@ -281,11 +284,27 @@ def batch_export(
             openscad_path, scad_file, output_file, export_format, d_flags
         )
         if success:
-            successes.append(output_file)
-            print(f"Exported: {output_file}")
+            return ("success", output_file)
         else:
-            failures.append((output_file, error))
-            print(f"Error exporting {output_file}: {error}")
+            return ("failure", (output_file, error))
+
+    # Use ThreadPoolExecutor for I/O-bound operations
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        # Prepare iterable of (index, param_set)
+        iterable = enumerate(parameters)
+        # Map the helper function to the executor
+        results = executor.map(process_export, iterable)
+
+        for result in results:
+            if result is None:
+                continue  # Skipped parameter set
+            status, info = result
+            if status == "success":
+                successes.append(info)
+                print(f"Exported: {info}")
+            elif status == "failure":
+                failures.append(info)
+                print(f"Error exporting {info[0]}: {info[1]}")
 
     print("\nBatch export completed.")
     print(f"Total exports attempted: {len(successes) + len(failures)}")

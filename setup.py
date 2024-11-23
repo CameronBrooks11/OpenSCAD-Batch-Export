@@ -6,7 +6,7 @@ setup(
     description="Batch export STL files from OpenSCAD using CSV or JSON parameters, and convert between CSV and JSON.",
     author="Cameron K. Brooks",
     author_email="cambrooks3393@gmail.com",
-    url="https://github.com/yourusername/OpenSCAD-Batch-Export",
+    url="https://github.com/CameronBrooks11/OpenSCAD-Batch-Export",
     packages=find_packages(),
     entry_points={
         "console_scripts": [

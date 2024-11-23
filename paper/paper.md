@@ -72,6 +72,5 @@ No financial support was received for this project. We thank the OpenSCAD commun
 
 # Figures
 
-![Example batch export process showing multiple STL models generated from a single parametric script.](path/to/figure1.png)
 
 # References

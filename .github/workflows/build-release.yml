@@ -1,17 +1,16 @@
+# .github/workflows/build-release.yml
+
 name: Build and Release
 
 on:
   push:
     tags:
-      - 'v*.*.*'  # Triggers on version tags like v1.0.0
+      - 'v*.*.*'  # Triggers on tags like v1.0.0, v2.0.1, etc.
 
 jobs:
-  build:
-    name: Build Executables
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
+  build-windows:
+    name: Build on Windows
+    runs-on: windows-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
@@ -19,65 +18,196 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: 3.x
+          python-version: '3.9'
 
-      - name: Install PyInstaller
-        run: pip install pyinstaller
-
-      - name: Build Executable
+      - name: Install Dependencies
         run: |
-          pyinstaller --onefile openscad_export/export.py --name openscad-batch-export
-          pyinstaller --onefile openscad_export/gui.py --name openscad-batch-export-gui
+          python -m pip install --upgrade pip
+          pip install pyinstaller
 
-      - name: Archive Executables
-        if: always()
+      - name: Install OpenSCAD
         run: |
-          if [ -d "./dist" ]; then rm -rf ./dist; fi
-          mkdir dist
-          mv ./dist/* ./dist/
+          choco install openscad --version=2021.01
 
-      - name: Upload Build Artifacts
+      - name: Verify OpenSCAD Installation
+        run: |
+          openscad --version
+
+      - name: Build CLI Executable
+        run: |
+          pyinstaller --onefile --name openscad-batch-export openscad_export/export.py
+
+      - name: Build GUI Executable
+        run: |
+          pyinstaller --onefile --windowed --name openscad-batch-export-gui openscad_export/gui.py
+
+      - name: Package Executables
+        run: |
+          mkdir build || echo "Build directory already exists."
+          Compress-Archive -Path dist\openscad-batch-export.exe, dist\openscad-batch-export-gui.exe -DestinationPath build\openscad-batch-export-windows.zip
+
+      - name: Upload Windows Executable
         uses: actions/upload-artifact@v3
         with:
-          name: binaries-${{ matrix.os }}
-          path: ./dist/*
+          name: windows-executables
+          path: build/openscad-batch-export-windows.zip
 
-  release:
-    name: Release Executables
-    needs: build
+  build-linux:
+    name: Build on Linux
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Download Build Artifacts
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install Dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip3 install pyinstaller
+
+      - name: Install OpenSCAD
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openscad
+
+      - name: Verify OpenSCAD Installation
+        run: |
+          openscad --version
+
+      - name: Build CLI Executable
+        run: |
+          pyinstaller --onefile --name openscad-batch-export openscad_export/export.py
+
+      - name: Build GUI Executable
+        run: |
+          pyinstaller --onefile --windowed --name openscad-batch-export-gui openscad_export/gui.py
+
+      - name: Package Executables
+        run: |
+          mkdir -p build
+          tar -czvf build/openscad-batch-export-linux.tar.gz -C dist openscad-batch-export openscad-batch-export-gui
+
+      - name: Upload Linux Executable
+        uses: actions/upload-artifact@v3
+        with:
+          name: linux-executables
+          path: build/openscad-batch-export-linux.tar.gz
+
+  build-macos:
+    name: Build on macOS
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install Dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip3 install pyinstaller
+
+      - name: Install OpenSCAD
+        run: |
+          brew update
+          brew install --cask openscad
+
+      - name: Verify OpenSCAD Installation
+        run: |
+          openscad --version
+
+      - name: Build CLI Executable
+        run: |
+          pyinstaller --onefile --name openscad-batch-export openscad_export/export.py
+
+      - name: Build GUI Executable
+        run: |
+          pyinstaller --onefile --windowed --name openscad-batch-export-gui openscad_export/gui.py
+
+      - name: Package Executables
+        run: |
+          mkdir -p build
+          tar -czvf build/openscad-batch-export-macos.tar.gz -C dist openscad-batch-export openscad-batch-export-gui
+
+      - name: Upload macOS Executable
+        uses: actions/upload-artifact@v3
+        with:
+          name: macos-executables
+          path: build/openscad-batch-export-macos.tar.gz
+
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [build-windows, build-linux, build-macos]
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Download Windows Executables
         uses: actions/download-artifact@v3
         with:
-          name: binaries-${{ matrix.os }}
-          path: ./dist
+          name: windows-executables
+          path: ./windows
+
+      - name: Download Linux Executables
+        uses: actions/download-artifact@v3
+        with:
+          name: linux-executables
+          path: ./linux
+
+      - name: Download macOS Executables
+        uses: actions/download-artifact@v3
+        with:
+          name: macos-executables
+          path: ./macos
 
       - name: Create GitHub Release
         id: create_release
         uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ github.ref_name }}
           release_name: "Release ${{ github.ref_name }}"
           body: |
-            ## Changes
-            See the changelog for details.
-
-            ## Downloads
-            Find the standalone executables below for each platform.
+            ## Release ${{ github.ref_name }}
+            Description of the release.
           draft: false
           prerelease: false
+
+      - name: Upload Windows Executable to Release
+        uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload Release Assets
-        uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./dist/openscad-batch-export
-          asset_name: openscad-batch-export-${{ matrix.os }}.zip
+          asset_path: ./windows/openscad-batch-export-windows.zip
+          asset_name: openscad-batch-export-windows.zip
           asset_content_type: application/zip
-# end
+
+      - name: Upload Linux Executable to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./linux/openscad-batch-export-linux.tar.gz
+          asset_name: openscad-batch-export-linux.tar.gz
+          asset_content_type: application/gzip
+
+      - name: Upload macOS Executable to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./macos/openscad-batch-export-macos.tar.gz
+          asset_name: openscad-batch-export-macos.tar.gz
+          asset_content_type: application/gzip

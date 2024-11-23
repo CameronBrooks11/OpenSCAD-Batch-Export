@@ -120,9 +120,12 @@ $RECYCLE.BIN/
 # -----------------------------
 dist/
 build/
-*.egg-info/
+*.egg-info
 .eggs/
 MANIFEST
+pyinstaller_dist/
+pyinstaller_build/
+*.spec
 
 # -----------------------------
 # Other

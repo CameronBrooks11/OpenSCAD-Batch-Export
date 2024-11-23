@@ -9,8 +9,7 @@ import subprocess
 from datetime import datetime
 
 # Import functions from export.py
-from . import export
-
+import openscad_export.export as export
 
 class OpenSCADBatchExporterGUI:
     def __init__(self, master):

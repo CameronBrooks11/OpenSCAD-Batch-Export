@@ -21,6 +21,8 @@ This repository provides a tool to automate the export of STL models from OpenSC
 
 ## Installation
 
+### From Source
+
 1. **Clone the repository:**
 
     ```

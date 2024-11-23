@@ -8,10 +8,12 @@ setup(
     author_email="cambrooks3393@gmail.com",
     url="https://github.com/yourusername/OpenSCAD-Batch-Export",
     packages=find_packages(),
-    # Removed py_modules since 'export' and 'gui' are part of the 'openscad_export' package
     entry_points={
         "console_scripts": [
             "openscad-export=openscad_export.export:main",
+        ],
+        "gui_scripts": [
+            "openscad-export-gui=openscad_export.gui:main",
         ],
     },
     install_requires=[],

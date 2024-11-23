@@ -33,7 +33,7 @@ jobs:
 
       - name: Package Executables
         run: |
-          mkdir build || echo "Build directory already exists."
+          New-Item -ItemType Directory -Force -Path build
           Compress-Archive -Path dist\openscad-batch-export.exe, dist\openscad-batch-export-gui.exe -DestinationPath build\openscad-batch-export-windows.zip
 
       - name: Upload Windows Executable

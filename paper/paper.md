@@ -1,3 +1,4 @@
+$$$
 ---
 title: "OpenSCAD Batch Exporter: Automating Parametric Design Workflows for Research and Engineering"
 tags:
@@ -50,10 +51,11 @@ This tool significantly extends the usability of OpenSCAD, making it easier for 
 
 The OpenSCAD Batch Exporter allows users to:
 
-- Batch export models using parameter files (CSV or JSON).
-- Select specific parameter ranges or combinations for targeted exports.
-- Convert between CSV and JSON formats for interoperability.
-- Specify export formats (ASCII or binary STL) and customize OpenSCAD paths.
+- **Batch Export**: Supports exporting STL files in ASCII or binary format using parameter files in CSV or JSON format.
+- **Selection Options**: Allows users to target specific parameter sets for export using a flexible selection syntax.
+- **Format Conversion**: Includes utilities for converting between CSV and JSON parameter files.
+- **Graphical User Interface (GUI)**: Simplifies usage for non-technical users, while retaining a command-line interface for advanced workflows.
+- **Cross-Platform Compatibility**: Works on systems where OpenSCAD is installed, leveraging its command-line capabilities.
 
 A command-line interface and an intuitive graphical user interface (GUI) make the tool adaptable for users of varying expertise levels.
 
@@ -64,7 +66,7 @@ This tool builds on efforts by the OpenSCAD community to streamline batch export
 - [OpenSCAD Batch Export STL](https://github.com/18107/OpenSCAD-batch-export-stl)
 - [OpenSCAD Bulk Export](https://github.com/OutwardBuckle/OpenSCAD-Bulk-Export)
 
-Unlike prior tools, the OpenSCAD Batch Exporter offers a complete and user-friendly package, with added functionality for parametric design workflows, broader compatibility, and robust documentation.
+Unlike prior methods and tools, the presented OpenSCAD Batch Exporter offers a complete and user-friendly package, with added functionality for parametric design workflows, broader compatibility, and robust documentation. It is currently being used for an ongoing research project called SnapTessSCAD, a complex OpenSCAD-based design program for computational design of 3D-printable interlocking connectors, validating the robustness and utility of the OpenSCAD Batch Exporter program.
 
 # Acknowledgments
 
@@ -72,6 +74,6 @@ No financial support was received for this project. We thank the OpenSCAD commun
 
 # Figures
 
- add
+*Figures to be added here to illustrate the GUI layout and workflow.*
 
 # References

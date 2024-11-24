@@ -1,4 +1,3 @@
-$$$
 ---
 title: "OpenSCAD Batch Exporter: Automating Parametric Design Workflows for Research and Engineering"
 tags:

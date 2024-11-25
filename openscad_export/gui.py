@@ -1,5 +1,19 @@
 # openscad_export/gui.py
 
+"""
+Graphical User Interface (GUI) for the OpenSCAD Batch Exporter.
+
+This GUI allows users to configure batch exports of STL files from OpenSCAD using CSV or JSON parameters.
+It also provides functionalities to convert parameter files between CSV and JSON formats.
+
+Features:
+- Browse and select OpenSCAD files, parameter files, and output directories.
+- Choose export formats and specify selection criteria.
+- Monitor export progress and view logs.
+- Convert between CSV and JSON parameter files.
+- Access comprehensive help documentation.
+"""
+
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import threading
@@ -11,8 +25,21 @@ from datetime import datetime
 # Import functions from export.py
 import openscad_export.export as export
 
+
 class OpenSCADBatchExporterGUI:
+    """
+    Main GUI class for the OpenSCAD Batch Exporter.
+
+    Handles the creation and management of all GUI components and user interactions.
+    """
+
     def __init__(self, master):
+        """
+        Initialize the GUI components.
+
+        Args:
+            master (tk.Tk): The root Tkinter window.
+        """
         self.master = master
         master.title("OpenSCAD Batch Exporter")
         master.geometry("1000x750")
@@ -235,11 +262,17 @@ class OpenSCADBatchExporterGUI:
         self.log_text.configure(yscrollcommand=scrollbar.set)
 
     def browse_scad(self):
+        """
+        Open a file dialog to browse and select an OpenSCAD (.scad) file.
+        """
         file_path = filedialog.askopenfilename(filetypes=[("OpenSCAD Files", "*.scad")])
         if file_path:
             self.scad_file.set(file_path)
 
     def browse_parameter(self):
+        """
+        Open a file dialog to browse and select a parameter file (CSV or JSON).
+        """
         file_path = filedialog.askopenfilename(
             filetypes=[("CSV Files", "*.csv"), ("JSON Files", "*.json")]
         )
@@ -247,11 +280,17 @@ class OpenSCADBatchExporterGUI:
             self.parameter_file.set(file_path)
 
     def browse_output(self):
+        """
+        Open a directory dialog to browse and select an output folder.
+        """
         folder = filedialog.askdirectory()
         if folder:
             self.output_folder.set(folder)
 
     def browse_openscad(self):
+        """
+        Open a file dialog to browse and select the OpenSCAD executable.
+        """
         file_path = filedialog.askopenfilename(
             filetypes=[("Executable Files", "*.exe"), ("All Files", "*.*")]
         )
@@ -259,6 +298,12 @@ class OpenSCADBatchExporterGUI:
             self.openscad_path.set(file_path)
 
     def append_log(self, message):
+        """
+        Append a timestamped message to the log display.
+
+        Args:
+            message (str): The message to append.
+        """
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         full_message = f"[{timestamp}] {message}"
         self.log_text.configure(state=tk.NORMAL)
@@ -267,11 +312,17 @@ class OpenSCADBatchExporterGUI:
         self.log_text.configure(state=tk.DISABLED)
 
     def clear_log(self):
+        """
+        Clear all messages from the log display.
+        """
         self.log_text.configure(state=tk.NORMAL)
         self.log_text.delete(1.0, tk.END)
         self.log_text.configure(state=tk.DISABLED)
 
     def disable_controls(self):
+        """
+        Disable all input and action widgets to prevent user interaction during processing.
+        """
         for widget in self.state_widgets:
             try:
                 widget.state(["disabled"])
@@ -282,6 +333,9 @@ class OpenSCADBatchExporterGUI:
                     pass  # Widget does not support 'state'
 
     def enable_controls(self):
+        """
+        Enable all input and action widgets after processing is complete.
+        """
         for widget in self.state_widgets:
             try:
                 if isinstance(widget, ttk.Combobox):
@@ -299,12 +353,21 @@ class OpenSCADBatchExporterGUI:
 
     def is_executable(self, path):
         """
-        Checks if the provided path is executable.
+        Check if the provided path is an executable file.
+
+        Args:
+            path (str): Path to the file.
+
+        Returns:
+            bool: True if the path is executable, False otherwise.
         """
         return os.path.isfile(path) and os.access(path, os.X_OK)
 
     def start_export(self):
-        # Validate inputs
+        """
+        Validate inputs and initiate the batch export process in a separate thread.
+        """
+        # Retrieve input values
         scad = self.scad_file.get()
         param = self.parameter_file.get()
         output = self.output_folder.get()
@@ -313,6 +376,7 @@ class OpenSCADBatchExporterGUI:
         sel = self.selection.get()
         seq = self.sequential.get()
 
+        # Input validation
         if not scad or not os.path.isfile(scad):
             messagebox.showerror(
                 "Error", "Please select a valid OpenSCAD (.scad) file."
@@ -334,7 +398,6 @@ class OpenSCADBatchExporterGUI:
                     "Error", "Please select a valid OpenSCAD executable."
                 )
                 return
-            # Additionally, check if the executable can be run
             if not self.is_executable(openscad):
                 messagebox.showerror(
                     "Error", "The selected OpenSCAD path is not executable."
@@ -357,8 +420,20 @@ class OpenSCADBatchExporterGUI:
         self.master.after(100, self.update_progress)
 
     def run_export(self, scad, param, output, openscad, fmt, sel, seq):
+        """
+        Execute the batch export process and handle exceptions.
+
+        Args:
+            scad (str): Path to the OpenSCAD (.scad) file.
+            param (str): Path to the parameter file (CSV or JSON).
+            output (str): Output directory for STL files.
+            openscad (str): Path to the OpenSCAD executable.
+            fmt (str): Export format ('asciistl' or 'binstl').
+            sel (str): Selection string for parameter sets.
+            seq (bool): Whether to process exports sequentially.
+        """
         try:
-            # Redirect stdout to capture print statements
+            # Redirect stdout to capture print statements in the GUI log
             original_stdout = sys.stdout
             sys.stdout = ExportLogger(self)
             export.batch_export(scad, param, output, openscad, fmt, sel, seq)
@@ -366,12 +441,16 @@ class OpenSCADBatchExporterGUI:
             self.append_log(f"An error occurred: {str(e)}")
             messagebox.showerror("Error", f"An error occurred during export:\n{str(e)}")
         finally:
+            # Restore original stdout and re-enable controls
             sys.stdout = original_stdout
             self.enable_controls()
             self.status_label.config(text="Status: Idle", foreground="blue")
             self.append_log("Batch export completed.")
 
     def update_progress(self):
+        """
+        Update the progress bar based on the status of the export thread.
+        """
         if self.export_thread.is_alive():
             # Update the progress bar to indeterminate mode
             self.progress.config(mode="indeterminate")
@@ -379,11 +458,15 @@ class OpenSCADBatchExporterGUI:
                 self.progress.start(10)
             self.master.after(100, self.update_progress)
         else:
+            # Stop the progress bar and set it to complete
             self.progress.stop()
             self.progress.config(mode="determinate")
             self.progress["value"] = 100
 
     def convert_csv_to_json(self):
+        """
+        Initiate the CSV to JSON conversion process.
+        """
         # Prompt user to select CSV file
         csv_file = filedialog.askopenfilename(filetypes=[("CSV Files", "*.csv")])
         if not csv_file:
@@ -408,6 +491,13 @@ class OpenSCADBatchExporterGUI:
         ).start()
 
     def run_csv_to_json(self, csv_file, json_file):
+        """
+        Perform the CSV to JSON conversion and handle exceptions.
+
+        Args:
+            csv_file (str): Path to the input CSV file.
+            json_file (str): Path to the output JSON file.
+        """
         try:
             export.csv_to_json(csv_file, json_file)
             self.append_log("CSV to JSON conversion completed successfully.")
@@ -418,10 +508,14 @@ class OpenSCADBatchExporterGUI:
             self.append_log(f"Conversion failed: {str(e)}")
             messagebox.showerror("Error", f"CSV to JSON conversion failed:\n{str(e)}")
         finally:
+            # Re-enable controls and update status
             self.enable_controls()
             self.status_label.config(text="Status: Idle", foreground="blue")
 
     def convert_json_to_csv(self):
+        """
+        Initiate the JSON to CSV conversion process.
+        """
         # Prompt user to select JSON file
         json_file = filedialog.askopenfilename(filetypes=[("JSON Files", "*.json")])
         if not json_file:
@@ -446,6 +540,13 @@ class OpenSCADBatchExporterGUI:
         ).start()
 
     def run_json_to_csv(self, json_file, csv_file):
+        """
+        Perform the JSON to CSV conversion and handle exceptions.
+
+        Args:
+            json_file (str): Path to the input JSON file.
+            csv_file (str): Path to the output CSV file.
+        """
         try:
             export.json_to_csv(json_file, csv_file)
             self.append_log("JSON to CSV conversion completed successfully.")
@@ -456,14 +557,21 @@ class OpenSCADBatchExporterGUI:
             self.append_log(f"Conversion failed: {str(e)}")
             messagebox.showerror("Error", f"JSON to CSV conversion failed:\n{str(e)}")
         finally:
+            # Re-enable controls and update status
             self.enable_controls()
             self.status_label.config(text="Status: Idle", foreground="blue")
 
     def show_help(self):
-        # Start a thread to fetch help text
+        """
+        Open the Help window displaying detailed help messages.
+        """
+        # Start a thread to fetch help text to avoid blocking the GUI
         threading.Thread(target=self.fetch_and_display_help, daemon=True).start()
 
     def fetch_and_display_help(self):
+        """
+        Fetch help messages for all subcommands and display them in the Help window.
+        """
         help_text = ""
         commands = [
             ["openscad-export", "--help"],
@@ -492,6 +600,12 @@ class OpenSCADBatchExporterGUI:
         self.master.after(0, self.display_help_window, help_text)
 
     def display_help_window(self, help_text):
+        """
+        Create and display the Help window with the provided help text.
+
+        Args:
+            help_text (str): The comprehensive help message to display.
+        """
         help_window = tk.Toplevel(self.master)
         help_window.title("Help")
         help_window.geometry("800x600")
@@ -520,17 +634,35 @@ class ExportLogger:
     """
 
     def __init__(self, gui):
+        """
+        Initialize the ExportLogger.
+
+        Args:
+            gui (OpenSCADBatchExporterGUI): The GUI instance to append logs to.
+        """
         self.gui = gui
 
     def write(self, message):
+        """
+        Write a message to the GUI log if it's not empty.
+
+        Args:
+            message (str): The message to write.
+        """
         if message.strip():
             self.gui.append_log(message.strip())
 
     def flush(self):
+        """
+        Flush method required for file-like objects. No action needed.
+        """
         pass  # No action needed
 
 
 def main():
+    """
+    Entry point of the GUI module. Initializes and runs the GUI.
+    """
     root = tk.Tk()
     # Apply a modern theme using ttk (optional)
     style = ttk.Style()

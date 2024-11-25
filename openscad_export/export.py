@@ -1,5 +1,18 @@
 # openscad_export/export.py
 
+"""
+Module for batch exporting STL files from OpenSCAD and converting parameter files between CSV and JSON formats.
+
+This module provides command-line interfaces for exporting STL files using parameter sets defined in CSV or JSON files,
+as well as tools for converting between these formats.
+
+Available subcommands:
+- export: Batch export STL files.
+- csv2json: Convert CSV parameter files to JSON.
+- json2csv: Convert JSON parameter files to CSV.
+- gui: Launch the graphical user interface.
+"""
+
 import os
 import csv
 import json
@@ -11,6 +24,12 @@ import time
 
 
 def parse_arguments():
+    """
+    Parse and return the command-line arguments.
+
+    Returns:
+        argparse.Namespace: Parsed command-line arguments.
+    """
     parser = argparse.ArgumentParser(
         description="Batch export STL files from OpenSCAD using CSV or JSON parameters, and convert between CSV and JSON."
     )
@@ -85,6 +104,15 @@ def parse_arguments():
 
 
 def read_csv(csv_path):
+    """
+    Read parameters from a CSV file.
+
+    Args:
+        csv_path (str): Path to the CSV file.
+
+    Returns:
+        list of dict: List of parameter dictionaries.
+    """
     with open(csv_path, newline="") as csvfile:
         reader = csv.DictReader(csvfile)
         parameters = [row for row in reader]
@@ -92,6 +120,15 @@ def read_csv(csv_path):
 
 
 def read_json(json_path):
+    """
+    Read parameters from a JSON file.
+
+    Args:
+        json_path (str): Path to the JSON file.
+
+    Returns:
+        list of dict: List of parameter dictionaries with 'exported_filename' added.
+    """
     with open(json_path, "r") as jsonfile:
         data = json.load(jsonfile)
     parameter_sets = data.get("parameterSets", {})
@@ -104,20 +141,26 @@ def read_json(json_path):
 
 
 def ensure_output_folder(folder):
+    """
+    Ensure that the output folder exists; create it if it does not.
+
+    Args:
+        folder (str): Path to the output folder.
+    """
     if not os.path.exists(folder):
         os.makedirs(folder)
 
 
 def parse_selection(selection_str, total_params):
     """
-    Parses a selection string and returns a sorted list of unique indices.
+    Parse a selection string and return a sorted list of unique indices.
 
     Args:
         selection_str (str): Selection string (e.g., "0-5,7,10-12, every:2 in 0-10, from:15, up_to:20").
         total_params (int): Total number of parameter sets.
 
     Returns:
-        List[int]: Sorted list of unique selected indices.
+        list of int: Sorted list of unique selected indices.
 
     Raises:
         ValueError: If the selection string is invalid.
@@ -195,7 +238,15 @@ def parse_selection(selection_str, total_params):
 
 
 def construct_d_flags(params):
-    """Constructs a list of -D flags for OpenSCAD based on parameters."""
+    """
+    Construct a list of -D flags for OpenSCAD based on parameters.
+
+    Args:
+        params (dict): Dictionary of parameters.
+
+    Returns:
+        list of str: List of -D flags.
+    """
     d_flags = []
     for key, value in params.items():
         if key != "exported_filename":
@@ -228,6 +279,22 @@ def construct_d_flags(params):
 
 
 def export_stl(openscad_path, scad_file, output_file, export_format, d_flags):
+    """
+    Export an STL file using OpenSCAD with the specified parameters.
+
+    Args:
+        openscad_path (str): Path to the OpenSCAD executable.
+        scad_file (str): Path to the OpenSCAD (.scad) file.
+        output_file (str): Path where the STL file will be saved.
+        export_format (str): Export format ('asciistl' or 'binstl').
+        d_flags (list of str): List of -D flags for OpenSCAD.
+
+    Returns:
+        tuple:
+            bool: Success status.
+            str: Error message if any.
+            float: Duration of the export process in seconds.
+    """
     start_time = time.perf_counter()
     command = (
         [
@@ -263,6 +330,18 @@ def batch_export(
     selection,
     sequential,
 ):
+    """
+    Perform batch export of STL files based on parameter sets.
+
+    Args:
+        scad_file (str): Path to the OpenSCAD (.scad) file.
+        parameter_file (str): Path to the CSV or JSON file containing parameters.
+        output_folder (str): Directory where STL files will be saved.
+        openscad_path (str): Path to the OpenSCAD executable.
+        export_format (str): Export format ('asciistl' or 'binstl').
+        selection (str or None): Selection string to specify which parameter sets to export.
+        sequential (bool): Whether to process exports sequentially.
+    """
     # Determine parameter file type based on extension
     _, ext = os.path.splitext(parameter_file)
     ext = ext.lower()
@@ -291,8 +370,16 @@ def batch_export(
     export_times = []
     total_start_time = time.perf_counter()
 
-    # Define a helper function for processing
     def process_export(idx_param):
+        """
+        Helper function to process a single export task.
+
+        Args:
+            idx_param (tuple): Tuple containing index and parameter set.
+
+        Returns:
+            tuple or None: Result of the export process or None if skipped.
+        """
         idx, param_set = idx_param
         if selected_indices is not None and idx not in selected_indices:
             return None  # Skip non-selected parameter sets
@@ -369,6 +456,7 @@ def batch_export(
     total_end_time = time.perf_counter()
     total_duration = total_end_time - total_start_time
 
+    # Summary of the batch export process
     print("\nBatch export completed.")
     print(f"Total exports attempted: {len(successes) + len(failures)}")
     print(f"Successful exports: {len(successes)}")
@@ -385,6 +473,13 @@ def batch_export(
 
 
 def csv_to_json(csv_file, json_file):
+    """
+    Convert a CSV parameter file to JSON format.
+
+    Args:
+        csv_file (str): Path to the input CSV file.
+        json_file (str): Path to the output JSON file.
+    """
     parameters = read_csv(csv_file)
     json_data = {"parameterSets": {}}
     for param_set in parameters:
@@ -420,6 +515,13 @@ def csv_to_json(csv_file, json_file):
 
 
 def json_to_csv(json_file, csv_file):
+    """
+    Convert a JSON parameter file to CSV format.
+
+    Args:
+        json_file (str): Path to the input JSON file.
+        csv_file (str): Path to the output CSV file.
+    """
     parameter_sets = read_json(json_file)
     # Collect all unique keys
     all_keys = set()
@@ -444,6 +546,9 @@ def json_to_csv(json_file, csv_file):
 
 
 def main():
+    """
+    Entry point of the module. Parses arguments and executes the corresponding subcommand.
+    """
     args = parse_arguments()
 
     if args.command == "export":

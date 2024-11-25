@@ -16,8 +16,6 @@ This repository provides a tool to automate the export of STL models from OpenSC
 
 ## Quick Start
 
-## Quick Start
-
 For easy usage, simply click on the **Releases** section on the right-hand side of the GitHub page and download the appropriate binary for your operating system (e.g., `.exe` for Windows, or equivalent for macOS and Linux). Install and start using the tool right away!
 
 ## Requirements

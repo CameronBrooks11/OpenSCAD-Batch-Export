@@ -81,8 +81,4 @@ Unlike prior methods and tools, the presented OpenSCAD Batch Exporter offers a c
 
 No financial support was received for this project. We thank the OpenSCAD community for their foundational contributions, which inspired this project.
 
-# Figures
-
-*Figures to be added here to illustrate the GUI layout and workflow.*
-
 # References

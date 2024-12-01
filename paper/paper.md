@@ -58,15 +58,15 @@ The OpenSCAD Batch Exporter allows users to:
 
 A command-line interface and an intuitive graphical user interface (GUI) make the tool adaptable for users of varying expertise levels. As illustrated in Figure \autoref{fig:gui_idle}, the OpenSCAD Batch Exporter GUI provides an intuitive interface for configuring batch exports. Users can select the OpenSCAD file, parameter file, and output directory, and specify export settings.
 
-![The OpenSCAD Batch Exporter GUI in idle state.\label{fig:gui_idle}](gui_idle.png)
+![The OpenSCAD Batch Exporter GUI in idle state.\label{fig:gui_idle}](gui_idle.png){width=400px}
 
 During the export process, users can monitor progress and view logs, as shown in Figure \autoref{fig:gui_exporting}.
 
-![Configuring batch export parameters and monitoring progress in the GUI.\label{fig:gui_exporting}](gui_exporting.png)
+![Configuring batch export parameters and monitoring progress in the GUI.\label{fig:gui_exporting}](gui_exporting.png){width=400px}
 
 After the batch export completes, the generated STL files can be accessed, exemplified in Figure \autoref{fig:stl_outputs}.
 
-![Examples of generated STL outputs from batch exporting.\label{fig:stl_outputs}](stl_outputs.png)
+![Examples of generated STL outputs from batch exporting.\label{fig:stl_outputs}](stl_outputs.png){width=400px}
 
 # Related Work
 

@@ -44,7 +44,7 @@ Parametric design tools like OpenSCAD enable researchers and engineers to create
    - Provides a straightforward interface for non-experts, allowing users to interact with pre-made parameter sets without coding knowledge.
    - Bridges the gap between OpenSCAD's code-based environment and accessible design workflows for scientific and engineering applications.
 
-This tool significantly extends the usability of OpenSCAD, making it easier for researchers, educators, and makers to integrate parametric design into their workflows.
+This tool significantly extends the usability of OpenSCAD, making it easier for researchers, engineers, educators, and makers to integrate data-driven design into their workflows.
 
 # Functionality
 

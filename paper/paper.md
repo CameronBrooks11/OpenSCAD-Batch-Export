@@ -33,7 +33,7 @@ Inspired by community contributions and existing batch exporting tools, this pro
 Parametric design tools like OpenSCAD enable researchers and engineers to create highly customizable computational 3D models. However, exporting multiple designs based on varied parameter sets can be time-consuming and error-prone. The OpenSCAD Batch Exporter automates this process, enabling rapid generation of design variants, which is critical for:
 
 1. **Research Applications**:
-   - Supports iterative experimental setups, such as those used in agrivoltaics [@pearce_parametric_2021], chemical synthesis [@hou_automatic_2021],  electronic components [@brooks_overcoming_2023], scientific hardware [@hietanen_approaches_2018;@lesuer_omis_2018;], medical devices [@gallup_parametric_2020;@petsiuk_partially_2020;@oberloier_overcoming_2022], manufacturing [@beeker_open-source_2018] and hardware prototyping [@oberloier_general_2018].
+   - Supports iterative experimental setups, such as those used in agrivoltaics [@pearce_parametric_2021], chemical synthesis [@hou_automatic_2021],  electronic components [@brooks_overcoming_2023], scientific hardware [@hietanen_approaches_2018;@lesuer_omis_2018], medical devices [@gallup_parametric_2020;@petsiuk_partially_2020;@oberloier_overcoming_2022], manufacturing [@beeker_open-source_2018] and hardware prototyping [@oberloier_general_2018].
    - Allows researchers to optimize designs by testing numerous parameter variations without manual intervention.
 
 2. **Mass Customization and Low-Resource Settings**:

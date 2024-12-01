@@ -257,6 +257,35 @@
             "text2_font": "4",
             "text2_font_size": "4",
             "text2_other_font": "Nunito Sans:style=Bold Italic"
+        },
+        "design default values": {
+            "background_color": "Red",
+            "background_thickness": "0.4",
+            "details_thickness": "1.6",
+            "flakeAngles": "[0, 55, -47, -115, 132]",
+            "flakeScale": "0.133",
+            "fontNames": "[\"other\", \"Arial Black:style=Regular\", \"Arial:style=Bold Italic\", \"Berkshire Swash:style=Regular\", \"Courgette:style=Regular\", \"Sriracha:style=Regular\", \"Yellowtail:style=Regular\", \"Tangerine:style=Bold\", \"Parisienne:style=Regular\", \"Italianno:style=Regular\"]",
+            "font_name": "3",
+            "font_size": "15",
+            "fudge": "0.01",
+            "line_under_name": "yes",
+            "name": "Lyle",
+            "name_X_offset": "0",
+            "name_Y_offset": "0",
+            "other_font": "Nunito Sans",
+            "part": "6",
+            "position_1_flake": "5",
+            "position_2_flake": "1",
+            "position_3_flake": "6",
+            "position_4_flake": "3",
+            "preview_colors": "1",
+            "snowflake_color": "White",
+            "text2": "",
+            "text2_X_offset": "0",
+            "text2_Y_offset": "0",
+            "text2_font": "4",
+            "text2_font_size": "7",
+            "text2_other_font": "Nunito Sans"
         }
     }
 }

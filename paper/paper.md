@@ -79,6 +79,6 @@ Unlike prior methods and tools, the presented OpenSCAD Batch Exporter offers a c
 
 # Acknowledgments
 
-No financial support was received for this project. We thank the OpenSCAD community for their foundational contributions, which inspired this project.
+This project was supported by the Thompson Endowment and The Natural Sciences and Engineering Research Council of Canada. We thank the OpenSCAD community for their foundational contributions, which inspired this project.
 
 # References

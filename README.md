@@ -13,6 +13,7 @@ This repository provides a tool to automate the export of STL models from OpenSC
 - Handles boolean, numeric, and string parameter types correctly.
 - Supports advanced selection options for parameter sets.
 - Includes multiple example projects to get started.
+- Tested and validated on a number of test cases.
 
 ## Quick Start
 

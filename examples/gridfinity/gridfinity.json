@@ -1,0 +1,14 @@
+{
+    "parameterSets": {
+        "design default values": {
+            "example": "1",
+            "gx": "6",
+            "gy": "6",
+            "height": "5",
+            "n_divx": "3",
+            "n_divy": "6",
+            "scoop_weight": "1"
+        }
+    },
+    "fileFormatVersion": "1"
+}

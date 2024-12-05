@@ -56,7 +56,7 @@ The OpenSCAD Batch Exporter allows users to:
 - **Graphical User Interface (GUI)**: Simplifies usage for non-technical users, while retaining a command-line interface for advanced workflows.
 - **Cross-Platform Compatibility**: Works on systems where OpenSCAD is installed, leveraging its command-line capabilities.
 
-A command-line interface and an intuitive graphical user interface (GUI) make the tool adaptable for users of varying expertise levels.
+A command-line interface and an intuitive graphical user interface (GUI) make the tool adaptable for users of varying expertise levels. This tool was developed and tested using OpenSCAD 2021.01, the latest stable release at the time of writing .
 
 # Related Work
 

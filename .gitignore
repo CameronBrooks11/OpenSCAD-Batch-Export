@@ -1,4 +1,25 @@
 # -----------------------------
+# Other
+# -----------------------------
+# Ignore user-generated output folders
+**/output/ # Ignore all folders named "output" anywhere in the project
+**/outputs/ # Ignore all folders named "outputs" anywhere in the project
+
+# Ignore all Blender backup files
+*.blend1
+*.blend2
+*.blend3
+*.blend4
+*.blend5
+*.blend6
+*.blend7
+*.blend8
+*.blend9
+
+# Ignore any temporary Blender files
+*.blend@
+
+# -----------------------------
 # General system/OS files
 # -----------------------------
 .DS_Store
@@ -126,11 +147,3 @@ MANIFEST
 pyinstaller_dist/
 pyinstaller_build/
 *.spec
-
-# -----------------------------
-# Other
-# -----------------------------
-# Ignore user-generated output folders
-output_stls/
-output/
-exported/

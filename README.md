@@ -122,7 +122,7 @@ openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad_
 - **Export with CSV:**
 
     ```
-    openscad-export export examples/simpleCube/simpleCube.scad examples/simpleCube/simpleCube.csv output_stls
+    openscad-export export examples/simpleCube/simpleCube.scad examples/simpleCube/simpleCube.csv output
     ```
 
 - **Selective Export:**
@@ -130,7 +130,7 @@ openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad_
     Export parameter sets from index 0 to 5:
 
     ```
-    openscad-export export examples/candleStand/candleStand.scad examples/candleStand/candleStand.csv output_stls --select "0-5"
+    openscad-export export examples/candleStand/candleStand.scad examples/candleStand/candleStand.csv output --select "0-5"
     ```
 
 - **Export from JSON:**
@@ -144,7 +144,7 @@ openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad_
     Then, export using the JSON file:
 
     ```
-    openscad-export export examples/simpleCube/simpleCube.scad examples/simpleCube/simpleCube.json output_stls
+    openscad-export export examples/simpleCube/simpleCube.scad examples/simpleCube/simpleCube.json output
     ```
 
 #### 2. Convert CSV to JSON

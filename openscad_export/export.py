@@ -263,15 +263,25 @@ def construct_d_flags(params):
                 elif lowered == "false":
                     d_flags.append(f"-D{key}=false")
                 else:
-                    # Attempt to convert to float
-                    try:
-                        numeric_value = float(value)
-                        if numeric_value.is_integer():
-                            numeric_value = int(numeric_value)
-                        d_flags.append(f"-D{key}={numeric_value}")
-                    except ValueError:
-                        # It's a string, wrap it in quotes
-                        d_flags.append(f'-D{key}="{value}"')
+                    # Check if the string represents an array or object
+                    stripped_value = value.strip()
+                    if (
+                        stripped_value.startswith("[") and stripped_value.endswith("]")
+                    ) or (
+                        stripped_value.startswith("{") and stripped_value.endswith("}")
+                    ):
+                        # Pass arrays and objects as is
+                        d_flags.append(f"-D{key}={value}")
+                    else:
+                        # Attempt to convert to float
+                        try:
+                            numeric_value = float(value)
+                            if numeric_value.is_integer():
+                                numeric_value = int(numeric_value)
+                            d_flags.append(f"-D{key}={numeric_value}")
+                        except ValueError:
+                            # It's a string, wrap it in quotes
+                            d_flags.append(f'-D{key}="{value}"')
             else:
                 # Default to string
                 d_flags.append(f'-D{key}="{value}"')

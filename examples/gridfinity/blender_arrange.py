@@ -1,3 +1,11 @@
+# ------------------------------------------------------------------------------------------------
+# This script arranges all mesh objects in the scene in a roughly square layout.
+# It uses a heuristic approach to mimic the layout of objects in a slicer.
+# The script calculates the total area of all objects and then computes a target square dimension.
+# It then sorts objects by size and places them row by row until we run out of space in that row.
+# Then it starts a new row below.
+# ------------------------------------------------------------------------------------------------
+
 import bpy
 import math
 

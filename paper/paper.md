@@ -68,6 +68,12 @@ After the batch export completes, the generated STL files can be accessed, exemp
 
 ![Examples of generated STL outputs from batch exporting.\label{fig:stl_outputs}](stl_outputs.png){width=1100px}
 
+The OpenSCAD Batch Exporter was validated for large-scale operations using the Gridfinity storage system rebuilt in OpenSCAD [@kenneth_gridfinity_2024], generating 200 unique models to test performance and reliability under high-demand workloads. The resulting STL models were visualized and analyzed in Blender, as shown in Figure \autoref{fig:gridfinity_display}.
+
+![Visualization of 200 Gridfinity models generated using the OpenSCAD Batch Exporter.\label{fig:gridfinity_display}](paper/gridifinity_display_mass_export.png){width=1100px}
+
+This entire development and testing process was conducted using the latest stable release, OpenSCAD 2021.01 [@openscad_2021].
+
 # Related Work
 
 This tool builds on efforts by the OpenSCAD community to streamline batch exporting [@openscad_github_wiki;@pinshape_2018]. It integrates and improves upon existing approaches, notably:

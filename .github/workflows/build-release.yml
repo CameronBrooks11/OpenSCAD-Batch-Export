@@ -11,10 +11,10 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v7
         with:
           python-version: '3.9'
 
@@ -37,7 +37,7 @@ jobs:
           Compress-Archive -Path dist\openscad-batch-export.exe, dist\openscad-batch-export-gui.exe -DestinationPath build\openscad-batch-export-windows.zip
 
       - name: Upload Windows Executable
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v7
         with:
           name: windows-executables
           path: build/openscad-batch-export-windows.zip
@@ -47,10 +47,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v7
         with:
           python-version: '3.9'
 
@@ -73,7 +73,7 @@ jobs:
           tar -czvf build/openscad-batch-export-linux.tar.gz -C dist openscad-batch-export openscad-batch-export-gui
 
       - name: Upload Linux Executable
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v7
         with:
           name: linux-executables
           path: build/openscad-batch-export-linux.tar.gz
@@ -83,10 +83,10 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v7
         with:
           python-version: '3.9'
 
@@ -109,7 +109,7 @@ jobs:
           tar -czvf build/openscad-batch-export-macos.tar.gz -C dist openscad-batch-export openscad-batch-export-gui
 
       - name: Upload macOS Executable
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v7
         with:
           name: macos-executables
           path: build/openscad-batch-export-macos.tar.gz
@@ -120,22 +120,22 @@ jobs:
     needs: [build-windows, build-linux, build-macos]
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
 
       - name: Download Windows Executables
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v8
         with:
           name: windows-executables
           path: ./windows
 
       - name: Download Linux Executables
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v8
         with:
           name: linux-executables
           path: ./linux
 
       - name: Download macOS Executables
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v8
         with:
           name: macos-executables
           path: ./macos

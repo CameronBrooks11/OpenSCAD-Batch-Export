@@ -12,7 +12,7 @@ jobs:
     name: Paper Draft
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Build draft PDF
         uses: openjournals/openjournals-draft-action@master
@@ -21,7 +21,7 @@ jobs:
           paper-path: paper/paper.md
 
       - name: Commit PDF to repository
-        uses: EndBug/add-and-commit@v9
+        uses: EndBug/add-and-commit@v11
         with:
           message: '(auto) Paper PDF Draft'
           add: 'paper/paper.pdf'

@@ -24,8 +24,7 @@ import tkinter as tk
 from datetime import datetime
 from tkinter import filedialog, messagebox, ttk
 
-# Import functions from export.py
-import openscad_export.export as export
+from openscad_export import batch_export, csv_to_json, json_to_csv
 
 
 class OpenSCADBatchExporterGUI:
@@ -398,7 +397,7 @@ class OpenSCADBatchExporterGUI:
             # Redirect stdout to capture print statements in the GUI log
             original_stdout = sys.stdout
             sys.stdout = ExportLogger(self)
-            export.batch_export(scad, param, output, openscad, fmt, sel, seq)
+            batch_export(scad, param, output, openscad, fmt, sel, seq)
         except Exception as e:
             self.append_log(f"An error occurred: {str(e)}")
             messagebox.showerror("Error", f"An error occurred during export:\n{str(e)}")
@@ -459,7 +458,7 @@ class OpenSCADBatchExporterGUI:
             json_file (str): Path to the output JSON file.
         """
         try:
-            export.csv_to_json(csv_file, json_file)
+            csv_to_json(csv_file, json_file)
             self.append_log("CSV to JSON conversion completed successfully.")
             messagebox.showinfo("Success", "CSV to JSON conversion completed successfully.")
         except Exception as e:
@@ -504,7 +503,7 @@ class OpenSCADBatchExporterGUI:
             csv_file (str): Path to the output CSV file.
         """
         try:
-            export.json_to_csv(json_file, csv_file)
+            json_to_csv(json_file, csv_file)
             self.append_log("JSON to CSV conversion completed successfully.")
             messagebox.showinfo("Success", "JSON to CSV conversion completed successfully.")
         except Exception as e:

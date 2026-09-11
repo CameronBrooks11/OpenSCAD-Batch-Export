@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from openscad_export.export import csv_to_json, json_to_csv, read_json
+from openscad_export.params import csv_to_json, json_to_csv, read_json
 
 EXAMPLES = Path(__file__).resolve().parent.parent / "examples"
 EXAMPLE_NAMES = sorted(p.name for p in EXAMPLES.iterdir() if (p / f"{p.name}.csv").exists())

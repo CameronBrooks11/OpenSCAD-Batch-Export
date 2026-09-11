@@ -1,6 +1,6 @@
 import pytest
 
-from openscad_export.export import parse_selection
+from openscad_export.params import parse_selection
 
 
 @pytest.mark.parametrize(

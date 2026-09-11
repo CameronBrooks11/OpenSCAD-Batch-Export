@@ -25,7 +25,7 @@ Homepage = "https://github.com/CameronBrooks11/OpenSCAD-Batch-Export"
 Issues = "https://github.com/CameronBrooks11/OpenSCAD-Batch-Export/issues"
 
 [project.scripts]
-openscad-export = "openscad_export.export:main"
+openscad-export = "openscad_export.cli:main"
 
 [project.gui-scripts]
 openscad-export-gui = "openscad_export.gui:main"

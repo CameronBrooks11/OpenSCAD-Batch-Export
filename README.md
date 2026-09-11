@@ -21,7 +21,7 @@ For easy usage, simply click on the **Releases** section on the right-hand side 
 
 ## Requirements
 
-- Python 3.6 or later.
+- Python 3.10 or later.
 - OpenSCAD installed and added to your system PATH.
 
 ## Installation

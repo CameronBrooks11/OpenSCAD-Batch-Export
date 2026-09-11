@@ -32,7 +32,9 @@ def test_read_json_names_each_set_from_its_key(tmp_path):
 
 def test_csv_to_json_types_values_and_writes_customizer_format(tmp_path):
     src = tmp_path / "p.csv"
-    src.write_text("exported_filename,n,x,flag,label\nsmall,3,2.5,true,ab c\nbig,10,4.0,FALSE,7up\n")
+    src.write_text(
+        "exported_filename,n,x,flag,label\nsmall,3,2.5,true,ab c\nbig,10,4.0,FALSE,7up\n"
+    )
     out = tmp_path / "p.json"
 
     csv_to_json(src, out)
@@ -48,7 +50,9 @@ def test_csv_to_json_types_values_and_writes_customizer_format(tmp_path):
 def test_json_to_csv_puts_name_first_and_lowercases_booleans(tmp_path):
     src = tmp_path / "p.json"
     src.write_text(
-        json.dumps({"parameterSets": {"a": {"bore": 1, "flag": True}, "b": {"bore": 2, "flag": False}}})
+        json.dumps(
+            {"parameterSets": {"a": {"bore": 1, "flag": True}, "b": {"bore": 2, "flag": False}}}
+        )
     )
     out = tmp_path / "p.csv"
 
@@ -82,4 +86,3 @@ def test_example_csv_survives_round_trip(name, tmp_path):
             # Booleans are normalised to lowercase; everything else must survive verbatim.
             expected = value.lower() if value.lower() in ("true", "false") else value
             assert restored[key][column] == expected, (key, column)
-

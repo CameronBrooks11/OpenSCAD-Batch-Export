@@ -6,8 +6,9 @@
 # Then it starts a new row below.
 # ------------------------------------------------------------------------------------------------
 
-import bpy
 import math
+
+import bpy
 
 # USER PARAMETER:
 min_spacing = 10  # Minimum spacing between objects
@@ -51,9 +52,7 @@ def arrange_objects_in_square(objects, spacing):
     for obj in objects:
         w, h, d = get_bounding_box_size(obj)
         # Area in XY plane:
-        area = (w + spacing) * (
-            h + spacing
-        )  # include spacing in the effective footprint
+        area = (w + spacing) * (h + spacing)  # include spacing in the effective footprint
         object_dims.append((max(w, h, d), w, h, obj))
         total_area += area
 
@@ -103,7 +102,8 @@ def arrange_objects_in_square(objects, spacing):
                 placed_objects += 1
 
     print(
-        f"Arranged {placed_objects} objects in a roughly square layout of dimension ~{target_dim:.2f} units."
+        f"Arranged {placed_objects} objects in a roughly square layout "
+        f"of dimension ~{target_dim:.2f} units."
     )
 
 

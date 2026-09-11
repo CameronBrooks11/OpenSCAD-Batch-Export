@@ -46,6 +46,8 @@ pip-selfcheck.json
 
 # pytest
 .cache/
+.pytest_cache/
+.ruff_cache/
 
 # mypy
 .mypy_cache/

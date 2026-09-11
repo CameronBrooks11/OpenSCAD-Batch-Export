@@ -1,0 +1,82 @@
+# Calls the `just` recipes so CI and local share one gate definition.
+#
+# Integration tests need a real OpenSCAD. The Linux matrix covers the last
+# stable release (2021.01, from apt) and the current development snapshot
+# (AppImage from files.openscad.org). Windows runs the unit tests only; the
+# integration tests skip themselves when `openscad` is not on PATH.
+
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Lint and format
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+      - uses: extractions/setup-just@v4
+      - run: just setup
+      - run: just check
+
+  test:
+    name: Test (py${{ matrix.python }}, openscad ${{ matrix.openscad }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.13"]
+        openscad: [stable, nightly]
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: extractions/setup-just@v4
+
+      - name: Install OpenSCAD (stable, apt)
+        if: matrix.openscad == 'stable'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends openscad
+
+      - name: Install OpenSCAD (nightly AppImage)
+        if: matrix.openscad == 'nightly'
+        run: |
+          url=$(curl -fsSL https://files.openscad.org/snapshots/.snapshot_linux_x86_64.js \
+                | grep -oE "https://[^']+\.AppImage")
+          echo "Downloading $url"
+          curl -fsSL -o openscad.AppImage "$url"
+          chmod +x openscad.AppImage
+          ./openscad.AppImage --appimage-extract >/dev/null
+          sudo ln -s "$PWD/squashfs-root/AppRun" /usr/local/bin/openscad
+
+      - run: openscad --version
+      - run: just setup
+      - run: just test
+
+  test-windows:
+    name: Unit tests (Windows, py3.13)
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          python-version: "3.13"
+      - uses: extractions/setup-just@v4
+      - run: just setup
+      - run: just test

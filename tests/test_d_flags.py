@@ -1,6 +1,6 @@
 import pytest
 
-from openscad_export.export import construct_d_flags
+from openscad_export.params import construct_d_flags
 
 
 @pytest.mark.parametrize(

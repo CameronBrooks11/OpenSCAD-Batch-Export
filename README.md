@@ -2,7 +2,7 @@
 
 This repository provides a tool to automate the export of STL models from OpenSCAD using CSV or JSON files of parameters. It offers a simple and user-friendly solution for batch exporting models with different parameter sets and includes a graphical user interface (GUI) for ease of use. Inspired by:
 
-[18107/OpenSCAD-batch-export-stl](https://github.com/18107/OpenSCAD-batch-export-stl)  
+[18107/OpenSCAD-batch-export-stl](https://github.com/18107/OpenSCAD-batch-export-stl)
 [OutwardBuckle/OpenSCAD-Bulk-Export](https://github.com/OutwardBuckle/OpenSCAD-Bulk-Export)
 
 ## Features
@@ -239,32 +239,32 @@ The `examples/` directory contains multiple projects demonstrating how to use th
 
 ### 1. Simple Cube
 
-A basic example of a customizable cube with varying dimensions.  
+A basic example of a customizable cube with varying dimensions.
 
-**Files:**  
+**Files:**
 
-- `examples/simpleCube/simpleCube.scad`  
-- `examples/simpleCube/simpleCube.csv`  
+- `examples/simpleCube/simpleCube.scad`
+- `examples/simpleCube/simpleCube.csv`
 - `examples/simpleCube/simpleCube.json`
 
 ### 2. Candle Stand
 
-A more complex model featuring a candle stand with options for customization from the [OpenSCAD Parametric Examples](https://github.com/openscad/openscad/tree/master/examples/Parametric).  
+A more complex model featuring a candle stand with options for customization from the [OpenSCAD Parametric Examples](https://github.com/openscad/openscad/tree/master/examples/Parametric).
 
-**Files:**  
+**Files:**
 
-- `examples/candleStand/candleStand.scad`  
-- `examples/candleStand/candleStand.csv`  
+- `examples/candleStand/candleStand.scad`
+- `examples/candleStand/candleStand.csv`
 - `examples/candleStand/candleStand.json`
 
 ### 3. Sign
 
 A customizable sign with adjustable message, size, and resolution parameters from the [OpenSCAD Parametric Examples](https://github.com/openscad/openscad/tree/master/examples/Parametric).
 
-**Files:**  
+**Files:**
 
-- `examples/sign/sign.scad`  
-- `examples/sign/sign.csv`  
+- `examples/sign/sign.scad`
+- `examples/sign/sign.csv`
 - `examples/sign/sign.json`
 
 ## Contributing

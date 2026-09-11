@@ -5,6 +5,8 @@ and :mod:`openscad_export.cli`. This module re-exports the old names so existing
 and ``python -m openscad_export.export`` keep working.
 """
 
+import sys
+
 from openscad_export.cli import main, parse_arguments
 from openscad_export.params import (
     construct_d_flags,
@@ -13,10 +15,19 @@ from openscad_export.params import (
     parse_selection,
     read_csv,
     read_json,
+    read_parameters,
 )
-from openscad_export.runner import batch_export, ensure_output_folder, export_stl
+from openscad_export.runner import (
+    BatchResult,
+    ExportResult,
+    batch_export,
+    ensure_output_folder,
+    export_stl,
+)
 
 __all__ = [
+    "BatchResult",
+    "ExportResult",
     "batch_export",
     "construct_d_flags",
     "csv_to_json",
@@ -28,7 +39,8 @@ __all__ = [
     "parse_selection",
     "read_csv",
     "read_json",
+    "read_parameters",
 ]
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

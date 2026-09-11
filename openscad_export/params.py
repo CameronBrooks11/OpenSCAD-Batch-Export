@@ -3,6 +3,10 @@ serializing values as OpenSCAD -D flags, and converting between the two formats.
 
 import csv
 import json
+import logging
+import os
+
+log = logging.getLogger("openscad_export")
 
 
 def read_csv(csv_path):
@@ -40,6 +44,27 @@ def read_json(json_path):
         param_set["exported_filename"] = name
         parameters.append(param_set)
     return parameters
+
+
+def read_parameters(parameter_file):
+    """
+    Read parameter sets from a CSV or JSON file, chosen by extension.
+
+    Args:
+        parameter_file (str): Path to the CSV or JSON file.
+
+    Returns:
+        list of dict: List of parameter dictionaries.
+
+    Raises:
+        ValueError: If the file extension is not .csv or .json.
+    """
+    ext = os.path.splitext(str(parameter_file))[1].lower()
+    if ext == ".csv":
+        return read_csv(parameter_file)
+    if ext == ".json":
+        return read_json(parameter_file)
+    raise ValueError(f"Unsupported parameter file format: {ext}")
 
 
 def parse_selection(selection_str, total_params):
@@ -207,7 +232,7 @@ def csv_to_json(csv_file, json_file):
     # Write to JSON file
     with open(json_file, "w") as jf:
         json.dump(json_data, jf, indent=4)
-    print(f"Converted {csv_file} to {json_file}.")
+    log.info("Converted %s to %s.", csv_file, json_file)
 
 
 def json_to_csv(json_file, csv_file):
@@ -238,4 +263,4 @@ def json_to_csv(json_file, csv_file):
                 else:
                     row[key] = value
             writer.writerow(row)
-    print(f"Converted {json_file} to {csv_file}.")
+    log.info("Converted %s to %s.", json_file, csv_file)

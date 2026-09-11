@@ -7,15 +7,19 @@ Available subcommands:
 - gui: Launch the graphical user interface."""
 
 import argparse
+import logging
 import sys
 
 from openscad_export.params import csv_to_json, json_to_csv
 from openscad_export.runner import batch_export
 
 
-def parse_arguments():
+def parse_arguments(argv=None):
     """
     Parse and return the command-line arguments.
+
+    Args:
+        argv (list of str or None): Arguments to parse; defaults to sys.argv[1:].
 
     Returns:
         argparse.Namespace: Parsed command-line arguments.
@@ -25,6 +29,12 @@ def parse_arguments():
             "Batch export STL files from OpenSCAD using CSV or JSON parameters, "
             "and convert between CSV and JSON."
         )
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Show the OpenSCAD command line for each export.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True, help="Sub-commands")
 
@@ -83,26 +93,47 @@ def parse_arguments():
     # GUI subcommand
     subparsers.add_parser("gui", help="Launch the graphical user interface.")
 
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
-def main():
+def main(argv=None):
     """
     Entry point of the module. Parses arguments and executes the corresponding subcommand.
-    """
-    args = parse_arguments()
 
+    Returns:
+        int: Process exit code. Non-zero if any export failed or the input was invalid.
+    """
+    args = parse_arguments(argv)
+    logger = logging.getLogger("openscad_export")
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG if args.verbose else logging.INFO)
+    try:
+        return _run(args)
+    finally:
+        logger.removeHandler(handler)
+
+
+def _run(args):
     if args.command == "export":
-        batch_export(
-            args.scad_file,
-            args.parameter_file,
-            args.output_folder,
-            args.openscad_path,
-            args.export_format,
-            args.select,
-            args.sequential,
-        )
-    elif args.command == "csv2json":
+        try:
+            result = batch_export(
+                args.scad_file,
+                args.parameter_file,
+                args.output_folder,
+                args.openscad_path,
+                args.export_format,
+                args.select,
+                args.sequential,
+            )
+        except ValueError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return 1
+        print()
+        print(result.summary())
+        return 1 if result.failures else 0
+    if args.command == "csv2json":
         csv_to_json(args.csv_file, args.json_file)
     elif args.command == "json2csv":
         json_to_csv(args.json_file, args.csv_file)
@@ -114,10 +145,12 @@ def main():
         except ImportError:
             print(
                 "GUI module not found. "
-                "Please ensure 'gui.py' is part of the 'openscad_export' package."
+                "Please ensure 'gui.py' is part of the 'openscad_export' package.",
+                file=sys.stderr,
             )
-            sys.exit(1)
+            return 1
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

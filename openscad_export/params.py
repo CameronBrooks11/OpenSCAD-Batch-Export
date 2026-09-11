@@ -4,7 +4,10 @@ serializing values as OpenSCAD -D flags, and converting between the two formats.
 import csv
 import json
 import logging
+import math
 import os
+import re
+from typing import NamedTuple
 
 log = logging.getLogger("openscad_export")
 
@@ -144,9 +147,202 @@ def parse_selection(selection_str, total_params):
     return sorted(selected_indices)
 
 
+_NUMBER = re.compile(r"[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?")
+_INTEGER = re.compile(r"[+-]?\d+")
+
+
+class ScadRange(NamedTuple):
+    """An OpenSCAD range literal, ``[start : end]`` or ``[start : step : end]``."""
+
+    start: float
+    end: float
+    step: float | None = None
+
+
+_STRING_ESCAPES = {"\\": "\\\\", '"': '\\"', "\n": "\\n", "\t": "\\t", "\r": "\\r"}
+
+
+def to_scad_literal(value):
+    """
+    Serialize a Python value as an OpenSCAD literal for use in a -D flag.
+
+    bool -> true/false, int/float -> number, str -> quoted and escaped string,
+    list/tuple -> vector (recursively), ScadRange -> range, None -> undef.
+
+    Raises:
+        ValueError: For non-finite floats, which OpenSCAD has no literal for.
+        TypeError: For any other type.
+    """
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError(f"Cannot serialize non-finite number {value!r} as an OpenSCAD literal")
+        return repr(value)
+    if isinstance(value, str):
+        escaped = "".join(_STRING_ESCAPES.get(ch, ch) for ch in value)
+        return f'"{escaped}"'
+    if isinstance(value, ScadRange):
+        parts = (
+            [value.start, value.end] if value.step is None else [value.start, value.step, value.end]
+        )
+        return "[" + " : ".join(to_scad_literal(v) for v in parts) + "]"
+    if isinstance(value, (list, tuple)):
+        return "[" + ", ".join(to_scad_literal(v) for v in value) + "]"
+    if value is None:
+        return "undef"
+    raise TypeError(f"Cannot serialize {type(value).__name__} as an OpenSCAD literal")
+
+
+def coerce_cell(text):
+    """
+    Decide what a parameter value written as text (a CSV cell, or a Customizer JSON
+    string) means, using OpenSCAD's own syntax:
+
+    - ``true`` / ``false`` (any case) -> bool; ``undef`` -> None
+    - a number in OpenSCAD's grammar (``12``, ``-2.5``, ``.5``, ``1e3``) -> int or float
+    - text wrapped in double quotes (``"007"``) -> that string, verbatim. This is how to
+      keep a numeric-looking value as a string.
+    - text starting with ``[`` -> a vector or range literal, parsed and validated.
+      Strings inside follow OpenSCAD escape rules (``\\n``, ``\\"``, ``\\u00e9``...).
+      Only literals are accepted: expressions such as ``[1+2, a]`` are rejected.
+    - anything else -> the string as written
+
+    Raises:
+        ValueError: If a vector is malformed or a number is out of range.
+    """
+    stripped = text.strip()
+    lowered = stripped.lower()
+    if lowered in ("true", "false"):
+        return lowered == "true"
+    if lowered == "undef":
+        return None
+    if _NUMBER.fullmatch(stripped):
+        if _INTEGER.fullmatch(stripped):
+            return int(stripped)
+        number = float(stripped)
+        if not math.isfinite(number):
+            raise ValueError(f"Number {stripped!r} is out of range")
+        return number
+    if len(stripped) >= 2 and stripped[0] == '"' and stripped[-1] == '"':
+        return stripped[1:-1]
+    if stripped.startswith("["):
+        return _parse_vector(stripped)
+    return text
+
+
+_SIMPLE_ESCAPES = {"n": "\n", "t": "\t", "r": "\r", "\\": "\\", '"': '"'}
+_HEX_ESCAPE_WIDTH = {"x": 2, "u": 4, "U": 6}
+
+
+def _parse_vector(text):
+    """Parse an OpenSCAD vector or range literal: numbers, strings, bools, undef, nested
+    vectors and ``[a : b]`` / ``[a : b : c]`` ranges. Expressions are not accepted."""
+    pos = 0
+
+    def error(message):
+        return ValueError(f"Invalid vector {text!r}: {message} at position {pos}")
+
+    def skip_ws():
+        nonlocal pos
+        while pos < len(text) and text[pos].isspace():
+            pos += 1
+
+    def parse_value():
+        nonlocal pos
+        skip_ws()
+        if pos >= len(text):
+            raise error("unexpected end")
+        ch = text[pos]
+        if ch == "[":
+            pos += 1
+            items = []
+            skip_ws()
+            if pos < len(text) and text[pos] == "]":
+                pos += 1
+                return items
+            separator = None
+            while True:
+                items.append(parse_value())
+                skip_ws()
+                if pos >= len(text):
+                    raise error("missing ']'")
+                if text[pos] in ",:" and separator in (None, text[pos]):
+                    separator = text[pos]
+                    pos += 1
+                    skip_ws()
+                    if separator == "," and pos < len(text) and text[pos] == "]":
+                        pos += 1  # trailing comma, as OpenSCAD allows
+                        return items
+                    continue
+                if text[pos] == "]":
+                    pos += 1
+                    if separator != ":":
+                        return items
+                    if len(items) == 2:
+                        return ScadRange(items[0], items[1])
+                    if len(items) == 3:
+                        return ScadRange(items[0], items[2], items[1])
+                    raise error("a range has two or three parts")
+                raise error(f"unexpected {text[pos]!r}")
+        if ch == '"':
+            pos += 1
+            chars = []
+            while pos < len(text) and text[pos] != '"':
+                if text[pos] == "\\":
+                    pos += 1
+                    if pos >= len(text):
+                        break
+                    esc = text[pos]
+                    if esc in _SIMPLE_ESCAPES:
+                        chars.append(_SIMPLE_ESCAPES[esc])
+                    elif esc in _HEX_ESCAPE_WIDTH:
+                        width = _HEX_ESCAPE_WIDTH[esc]
+                        digits = text[pos + 1 : pos + 1 + width]
+                        if len(digits) != width or not all(
+                            c in "0123456789abcdefABCDEF" for c in digits
+                        ):
+                            raise error(f"bad \\{esc} escape")
+                        chars.append(chr(int(digits, 16)))
+                        pos += width
+                    else:
+                        chars.append("\\" + esc)  # unknown escape: keep as written
+                else:
+                    chars.append(text[pos])
+                pos += 1
+            if pos >= len(text):
+                raise error("unterminated string")
+            pos += 1
+            return "".join(chars)
+        match = _NUMBER.match(text, pos)
+        if match:
+            pos = match.end()
+            token = match.group(0)
+            return int(token) if _INTEGER.fullmatch(token) else float(token)
+        for word, value in (("true", True), ("false", False), ("undef", None)):
+            if text.startswith(word, pos):
+                pos += len(word)
+                return value
+        raise error(f"unexpected {ch!r}")
+
+    try:
+        result = parse_value()
+    except RecursionError:
+        raise error("nesting too deep") from None
+    skip_ws()
+    if pos != len(text):
+        raise error("trailing characters")
+    return result
+
+
 def construct_d_flags(params):
     """
     Construct a list of -D flags for OpenSCAD based on parameters.
+
+    String values are interpreted with :func:`coerce_cell`; other values are serialized
+    directly with :func:`to_scad_literal`.
 
     Args:
         params (dict): Dictionary of parameters.
@@ -156,40 +352,14 @@ def construct_d_flags(params):
     """
     d_flags = []
     for key, value in params.items():
-        if key != "exported_filename":
-            if isinstance(value, bool):
-                # Booleans should be lowercased and not quoted
-                d_flags.append(f"-D{key}={'true' if value else 'false'}")
-            elif isinstance(value, (int, float)):
-                # Numbers are passed as is
-                d_flags.append(f"-D{key}={value}")
-            elif isinstance(value, str):
-                lowered = value.lower()
-                if lowered == "true":
-                    d_flags.append(f"-D{key}=true")
-                elif lowered == "false":
-                    d_flags.append(f"-D{key}=false")
-                else:
-                    # Check if the string represents an array or object
-                    stripped_value = value.strip()
-                    if (stripped_value.startswith("[") and stripped_value.endswith("]")) or (
-                        stripped_value.startswith("{") and stripped_value.endswith("}")
-                    ):
-                        # Pass arrays and objects as is
-                        d_flags.append(f"-D{key}={value}")
-                    else:
-                        # Attempt to convert to float
-                        try:
-                            numeric_value = float(value)
-                            if numeric_value.is_integer():
-                                numeric_value = int(numeric_value)
-                            d_flags.append(f"-D{key}={numeric_value}")
-                        except ValueError:
-                            # It's a string, wrap it in quotes
-                            d_flags.append(f'-D{key}="{value}"')
-            else:
-                # Default to string
-                d_flags.append(f'-D{key}="{value}"')
+        if key == "exported_filename":
+            continue
+        try:
+            if isinstance(value, str):
+                value = coerce_cell(value)
+            d_flags.append(f"-D{key}={to_scad_literal(value)}")
+        except (TypeError, ValueError) as e:
+            raise ValueError(f"Parameter '{key}': {e}") from e
     return d_flags
 
 

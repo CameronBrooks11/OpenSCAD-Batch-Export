@@ -4,6 +4,8 @@ parameter sets."""
 import logging
 
 from openscad_export.params import (
+    ScadRange,
+    coerce_cell,
     construct_d_flags,
     csv_to_json,
     json_to_csv,
@@ -11,6 +13,7 @@ from openscad_export.params import (
     read_csv,
     read_json,
     read_parameters,
+    to_scad_literal,
 )
 from openscad_export.runner import BatchResult, ExportResult, batch_export
 
@@ -21,7 +24,9 @@ logging.getLogger(__name__).addHandler(logging.NullHandler())
 __all__ = [
     "BatchResult",
     "ExportResult",
+    "ScadRange",
     "batch_export",
+    "coerce_cell",
     "construct_d_flags",
     "csv_to_json",
     "json_to_csv",
@@ -29,4 +34,5 @@ __all__ = [
     "read_csv",
     "read_json",
     "read_parameters",
+    "to_scad_literal",
 ]

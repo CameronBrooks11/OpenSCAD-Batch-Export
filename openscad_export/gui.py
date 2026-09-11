@@ -3,7 +3,8 @@
 """
 Graphical User Interface (GUI) for the OpenSCAD Batch Exporter.
 
-This GUI allows users to configure batch exports of STL files from OpenSCAD using CSV or JSON parameters.
+This GUI allows users to configure batch exports of STL files from OpenSCAD using CSV or
+JSON parameters.
 It also provides functionalities to convert parameter files between CSV and JSON formats.
 
 Features:
@@ -14,13 +15,14 @@ Features:
 - Access comprehensive help documentation.
 """
 
-import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
-import threading
+import contextlib
 import os
-import sys
 import subprocess
+import sys
+import threading
+import tkinter as tk
 from datetime import datetime
+from tkinter import filedialog, messagebox, ttk
 
 # Import functions from export.py
 import openscad_export.export as export
@@ -73,9 +75,7 @@ class OpenSCADBatchExporterGUI:
         self.state_widgets = []
 
         # === Input Section Frame ===
-        input_frame = ttk.LabelFrame(
-            main_frame, text="Input Configuration", padding="10 10 10 10"
-        )
+        input_frame = ttk.LabelFrame(main_frame, text="Input Configuration", padding="10 10 10 10")
         input_frame.grid(row=0, column=0, columnspan=2, sticky=tk.EW, padx=5, pady=5)
 
         # Configure grid within input_frame
@@ -87,13 +87,9 @@ class OpenSCADBatchExporterGUI:
             row=0, column=0, sticky=tk.W, padx=5, pady=5
         )
         self.scad_entry = ttk.Entry(input_frame, textvariable=self.scad_file)
-        self.scad_entry.grid(
-            row=0, column=1, columnspan=2, sticky=tk.EW, padx=5, pady=5
-        )
+        self.scad_entry.grid(row=0, column=1, columnspan=2, sticky=tk.EW, padx=5, pady=5)
         self.state_widgets.append(self.scad_entry)
-        scad_browse_btn = ttk.Button(
-            input_frame, text="Browse", command=self.browse_scad
-        )
+        scad_browse_btn = ttk.Button(input_frame, text="Browse", command=self.browse_scad)
         scad_browse_btn.grid(row=0, column=3, sticky=tk.W, padx=5, pady=5)
         self.state_widgets.append(scad_browse_btn)
 
@@ -102,13 +98,9 @@ class OpenSCADBatchExporterGUI:
             row=1, column=0, sticky=tk.W, padx=5, pady=5
         )
         self.param_entry = ttk.Entry(input_frame, textvariable=self.parameter_file)
-        self.param_entry.grid(
-            row=1, column=1, columnspan=2, sticky=tk.EW, padx=5, pady=5
-        )
+        self.param_entry.grid(row=1, column=1, columnspan=2, sticky=tk.EW, padx=5, pady=5)
         self.state_widgets.append(self.param_entry)
-        param_browse_btn = ttk.Button(
-            input_frame, text="Browse", command=self.browse_parameter
-        )
+        param_browse_btn = ttk.Button(input_frame, text="Browse", command=self.browse_parameter)
         param_browse_btn.grid(row=1, column=3, sticky=tk.W, padx=5, pady=5)
         self.state_widgets.append(param_browse_btn)
 
@@ -117,13 +109,9 @@ class OpenSCADBatchExporterGUI:
             row=2, column=0, sticky=tk.W, padx=5, pady=5
         )
         self.output_entry = ttk.Entry(input_frame, textvariable=self.output_folder)
-        self.output_entry.grid(
-            row=2, column=1, columnspan=2, sticky=tk.EW, padx=5, pady=5
-        )
+        self.output_entry.grid(row=2, column=1, columnspan=2, sticky=tk.EW, padx=5, pady=5)
         self.state_widgets.append(self.output_entry)
-        output_browse_btn = ttk.Button(
-            input_frame, text="Browse", command=self.browse_output
-        )
+        output_browse_btn = ttk.Button(input_frame, text="Browse", command=self.browse_output)
         output_browse_btn.grid(row=2, column=3, sticky=tk.W, padx=5, pady=5)
         self.state_widgets.append(output_browse_btn)
 
@@ -132,20 +120,14 @@ class OpenSCADBatchExporterGUI:
             row=3, column=0, sticky=tk.W, padx=5, pady=5
         )
         self.openscad_entry = ttk.Entry(input_frame, textvariable=self.openscad_path)
-        self.openscad_entry.grid(
-            row=3, column=1, columnspan=2, sticky=tk.EW, padx=5, pady=5
-        )
+        self.openscad_entry.grid(row=3, column=1, columnspan=2, sticky=tk.EW, padx=5, pady=5)
         self.state_widgets.append(self.openscad_entry)
-        openscad_browse_btn = ttk.Button(
-            input_frame, text="Browse", command=self.browse_openscad
-        )
+        openscad_browse_btn = ttk.Button(input_frame, text="Browse", command=self.browse_openscad)
         openscad_browse_btn.grid(row=3, column=3, sticky=tk.W, padx=5, pady=5)
         self.state_widgets.append(openscad_browse_btn)
 
         # === Settings Section Frame ===
-        settings_frame = ttk.LabelFrame(
-            main_frame, text="Export Settings", padding="10 10 10 10"
-        )
+        settings_frame = ttk.LabelFrame(main_frame, text="Export Settings", padding="10 10 10 10")
         settings_frame.grid(row=1, column=0, columnspan=2, sticky=tk.EW, padx=5, pady=5)
 
         # Configure grid within settings_frame
@@ -170,13 +152,9 @@ class OpenSCADBatchExporterGUI:
             row=1, column=0, sticky=tk.W, padx=5, pady=5
         )
         self.selection_entry = ttk.Entry(settings_frame, textvariable=self.selection)
-        self.selection_entry.grid(
-            row=1, column=1, columnspan=2, sticky=tk.EW, padx=5, pady=5
-        )
+        self.selection_entry.grid(row=1, column=1, columnspan=2, sticky=tk.EW, padx=5, pady=5)
         self.state_widgets.append(self.selection_entry)
-        selection_info = (
-            "e.g., '0-5', '1-3,7,10-12', 'every:2 in 0-10', 'from:5', 'up_to:4'"
-        )
+        selection_info = "e.g., '0-5', '1-3,7,10-12', 'every:2 in 0-10', 'from:5', 'up_to:4'"
         ttk.Label(settings_frame, text=selection_info, foreground="gray").grid(
             row=1, column=3, sticky=tk.W, padx=5, pady=5
         )
@@ -193,16 +171,12 @@ class OpenSCADBatchExporterGUI:
         progress_frame.grid(row=2, column=0, columnspan=2, sticky=tk.EW, padx=5, pady=5)
 
         # Progress Bar
-        self.progress = ttk.Progressbar(
-            progress_frame, orient="horizontal", mode="determinate"
-        )
+        self.progress = ttk.Progressbar(progress_frame, orient="horizontal", mode="determinate")
         self.progress.grid(row=0, column=0, sticky=tk.EW, padx=5, pady=5)
         progress_frame.columnconfigure(0, weight=1)
 
         # Status Label
-        self.status_label = ttk.Label(
-            progress_frame, text="Status: Idle", foreground="blue"
-        )
+        self.status_label = ttk.Label(progress_frame, text="Status: Idle", foreground="blue")
         self.status_label.grid(row=1, column=0, sticky=tk.W, padx=5, pady=5)
 
         # === Buttons Frame ===
@@ -233,9 +207,7 @@ class OpenSCADBatchExporterGUI:
         self.state_widgets.append(convert_json_csv_btn)
 
         # Clear Log Button
-        clear_log_btn = ttk.Button(
-            buttons_frame, text="Clear Log", command=self.clear_log
-        )
+        clear_log_btn = ttk.Button(buttons_frame, text="Clear Log", command=self.clear_log)
         clear_log_btn.grid(row=0, column=3, padx=5, pady=5, sticky=tk.EW)
         self.state_widgets.append(clear_log_btn)
 
@@ -327,10 +299,8 @@ class OpenSCADBatchExporterGUI:
             try:
                 widget.state(["disabled"])
             except AttributeError:
-                try:
+                with contextlib.suppress(tk.TclError):  # widget does not support 'state'
                     widget.config(state=tk.DISABLED)
-                except tk.TclError:
-                    pass  # Widget does not support 'state'
 
     def enable_controls(self):
         """
@@ -378,14 +348,10 @@ class OpenSCADBatchExporterGUI:
 
         # Input validation
         if not scad or not os.path.isfile(scad):
-            messagebox.showerror(
-                "Error", "Please select a valid OpenSCAD (.scad) file."
-            )
+            messagebox.showerror("Error", "Please select a valid OpenSCAD (.scad) file.")
             return
         if not param or not os.path.isfile(param):
-            messagebox.showerror(
-                "Error", "Please select a valid parameter file (CSV or JSON)."
-            )
+            messagebox.showerror("Error", "Please select a valid parameter file (CSV or JSON).")
             return
         if not output:
             messagebox.showerror("Error", "Please select an output folder.")
@@ -394,14 +360,10 @@ class OpenSCADBatchExporterGUI:
         # Validate OpenSCAD Path
         if openscad.lower() != "openscad":
             if not os.path.isfile(openscad):
-                messagebox.showerror(
-                    "Error", "Please select a valid OpenSCAD executable."
-                )
+                messagebox.showerror("Error", "Please select a valid OpenSCAD executable.")
                 return
             if not self.is_executable(openscad):
-                messagebox.showerror(
-                    "Error", "The selected OpenSCAD path is not executable."
-                )
+                messagebox.showerror("Error", "The selected OpenSCAD path is not executable.")
                 return
 
         # Disable controls and reset progress
@@ -481,9 +443,7 @@ class OpenSCADBatchExporterGUI:
         # Disable controls during conversion
         self.disable_controls()
         self.append_log(f"Converting CSV to JSON: {csv_file} -> {json_file}")
-        self.status_label.config(
-            text="Status: Converting CSV to JSON...", foreground="orange"
-        )
+        self.status_label.config(text="Status: Converting CSV to JSON...", foreground="orange")
 
         # Start conversion in a separate thread
         threading.Thread(
@@ -501,9 +461,7 @@ class OpenSCADBatchExporterGUI:
         try:
             export.csv_to_json(csv_file, json_file)
             self.append_log("CSV to JSON conversion completed successfully.")
-            messagebox.showinfo(
-                "Success", "CSV to JSON conversion completed successfully."
-            )
+            messagebox.showinfo("Success", "CSV to JSON conversion completed successfully.")
         except Exception as e:
             self.append_log(f"Conversion failed: {str(e)}")
             messagebox.showerror("Error", f"CSV to JSON conversion failed:\n{str(e)}")
@@ -530,9 +488,7 @@ class OpenSCADBatchExporterGUI:
         # Disable controls during conversion
         self.disable_controls()
         self.append_log(f"Converting JSON to CSV: {json_file} -> {csv_file}")
-        self.status_label.config(
-            text="Status: Converting JSON to CSV...", foreground="orange"
-        )
+        self.status_label.config(text="Status: Converting JSON to CSV...", foreground="orange")
 
         # Start conversion in a separate thread
         threading.Thread(
@@ -550,9 +506,7 @@ class OpenSCADBatchExporterGUI:
         try:
             export.json_to_csv(json_file, csv_file)
             self.append_log("JSON to CSV conversion completed successfully.")
-            messagebox.showinfo(
-                "Success", "JSON to CSV conversion completed successfully."
-            )
+            messagebox.showinfo("Success", "JSON to CSV conversion completed successfully.")
         except Exception as e:
             self.append_log(f"Conversion failed: {str(e)}")
             messagebox.showerror("Error", f"JSON to CSV conversion failed:\n{str(e)}")
@@ -583,18 +537,15 @@ class OpenSCADBatchExporterGUI:
 
         for cmd in commands:
             try:
-                result = subprocess.run(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                    check=True,
-                )
+                result = subprocess.run(cmd, capture_output=True, text=True, check=True)
                 help_text += f"{' '.join(cmd)}:\n{result.stdout}\n"
             except subprocess.CalledProcessError as e:
                 help_text += f"{' '.join(cmd)} Error:\n{e.stderr}\n"
             except FileNotFoundError:
-                help_text += f"Error: {' '.join(cmd)} command not found. Please ensure it is installed and in your system's PATH.\n"
+                help_text += (
+                    f"Error: {' '.join(cmd)} command not found. "
+                    "Please ensure it is installed and in your system's PATH.\n"
+                )
 
         # Schedule the GUI update in the main thread
         self.master.after(0, self.display_help_window, help_text)
@@ -616,9 +567,7 @@ class OpenSCADBatchExporterGUI:
         help_window.rowconfigure(0, weight=1)
 
         # Text widget with scrollbar
-        text = tk.Text(
-            help_window, wrap=tk.WORD, state=tk.NORMAL, font=("Consolas", 10)
-        )
+        text = tk.Text(help_window, wrap=tk.WORD, state=tk.NORMAL, font=("Consolas", 10))
         text.insert(tk.END, help_text)
         text.configure(state=tk.DISABLED)
         text.grid(row=0, column=0, sticky=tk.NSEW, padx=10, pady=10)
@@ -672,7 +621,7 @@ def main():
         style.theme_use("clam")
     else:
         style.theme_use(style.theme_names()[0])  # Default to the first available theme
-    gui = OpenSCADBatchExporterGUI(root)
+    _gui = OpenSCADBatchExporterGUI(root)  # keep a reference for the lifetime of mainloop
     root.mainloop()
 
 

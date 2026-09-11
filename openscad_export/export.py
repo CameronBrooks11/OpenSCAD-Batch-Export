@@ -1,10 +1,11 @@
 # openscad_export/export.py
 
 """
-Module for batch exporting STL files from OpenSCAD and converting parameter files between CSV and JSON formats.
+Module for batch exporting STL files from OpenSCAD and converting parameter files
+between CSV and JSON formats.
 
-This module provides command-line interfaces for exporting STL files using parameter sets defined in CSV or JSON files,
-as well as tools for converting between these formats.
+This module provides command-line interfaces for exporting STL files using parameter
+sets defined in CSV or JSON files, as well as tools for converting between these formats.
 
 Available subcommands:
 - export: Batch export STL files.
@@ -13,13 +14,13 @@ Available subcommands:
 - gui: Launch the graphical user interface.
 """
 
-import os
+import argparse
+import concurrent.futures
 import csv
 import json
+import os
 import subprocess
-import argparse
 import sys
-import concurrent.futures
 import time
 
 
@@ -31,11 +32,12 @@ def parse_arguments():
         argparse.Namespace: Parsed command-line arguments.
     """
     parser = argparse.ArgumentParser(
-        description="Batch export STL files from OpenSCAD using CSV or JSON parameters, and convert between CSV and JSON."
+        description=(
+            "Batch export STL files from OpenSCAD using CSV or JSON parameters, "
+            "and convert between CSV and JSON."
+        )
     )
-    subparsers = parser.add_subparsers(
-        dest="command", required=True, help="Sub-commands"
-    )
+    subparsers = parser.add_subparsers(dest="command", required=True, help="Sub-commands")
 
     # Export subcommand
     export_parser = subparsers.add_parser(
@@ -45,9 +47,7 @@ def parse_arguments():
     export_parser.add_argument(
         "parameter_file", help="Path to the CSV or JSON file containing parameters."
     )
-    export_parser.add_argument(
-        "output_folder", help="Directory where STL files will be saved."
-    )
+    export_parser.add_argument("output_folder", help="Directory where STL files will be saved.")
     export_parser.add_argument(
         "--openscad_path",
         default="openscad",
@@ -82,23 +82,17 @@ def parse_arguments():
     )
 
     # csv2json subcommand
-    csv2json_parser = subparsers.add_parser(
-        "csv2json", help="Convert CSV parameter file to JSON."
-    )
+    csv2json_parser = subparsers.add_parser("csv2json", help="Convert CSV parameter file to JSON.")
     csv2json_parser.add_argument("csv_file", help="Path to the CSV file.")
     csv2json_parser.add_argument("json_file", help="Path to the output JSON file.")
 
     # json2csv subcommand
-    json2csv_parser = subparsers.add_parser(
-        "json2csv", help="Convert JSON parameter file to CSV."
-    )
+    json2csv_parser = subparsers.add_parser("json2csv", help="Convert JSON parameter file to CSV.")
     json2csv_parser.add_argument("json_file", help="Path to the JSON file.")
     json2csv_parser.add_argument("csv_file", help="Path to the output CSV file.")
 
     # GUI subcommand
-    gui_parser = subparsers.add_parser(
-        "gui", help="Launch the graphical user interface."
-    )
+    subparsers.add_parser("gui", help="Launch the graphical user interface.")
 
     return parser.parse_args()
 
@@ -129,7 +123,7 @@ def read_json(json_path):
     Returns:
         list of dict: List of parameter dictionaries with 'exported_filename' added.
     """
-    with open(json_path, "r") as jsonfile:
+    with open(json_path) as jsonfile:
         data = json.load(jsonfile)
     parameter_sets = data.get("parameterSets", {})
     parameters = []
@@ -156,7 +150,8 @@ def parse_selection(selection_str, total_params):
     Parse a selection string and return a sorted list of unique indices.
 
     Args:
-        selection_str (str): Selection string (e.g., "0-5,7,10-12, every:2 in 0-10, from:15, up_to:20").
+        selection_str (str): Selection string
+            (e.g., "0-5,7,10-12, every:2 in 0-10, from:15, up_to:20").
         total_params (int): Total number of parameter sets.
 
     Returns:
@@ -181,36 +176,30 @@ def parse_selection(selection_str, total_params):
                     raise ValueError(f"Invalid range '{range_part}': start > end.")
                 for i in range(start, end + 1, step):
                     if i < 0 or i >= total_params:
-                        raise ValueError(
-                            f"Index {i} out of range (0-{total_params -1})."
-                        )
+                        raise ValueError(f"Index {i} out of range (0-{total_params - 1}).")
                     selected_indices.add(i)
             except ValueError as ve:
-                raise ValueError(f"Invalid step selection '{part}': {ve}")
+                raise ValueError(f"Invalid step selection '{part}': {ve}") from ve
         elif part.startswith("from:"):
             try:
                 _, start_str = part.split(":", 1)
                 start = int(start_str)
                 if start < 0 or start >= total_params:
-                    raise ValueError(
-                        f"Start index {start} out of range (0-{total_params -1})."
-                    )
+                    raise ValueError(f"Start index {start} out of range (0-{total_params - 1}).")
                 for i in range(start, total_params):
                     selected_indices.add(i)
             except ValueError as ve:
-                raise ValueError(f"Invalid 'from' selection '{part}': {ve}")
+                raise ValueError(f"Invalid 'from' selection '{part}': {ve}") from ve
         elif part.startswith("up_to:"):
             try:
                 _, end_str = part.split(":", 1)
                 end = int(end_str)
                 if end < 0 or end >= total_params:
-                    raise ValueError(
-                        f"End index {end} out of range (0-{total_params -1})."
-                    )
+                    raise ValueError(f"End index {end} out of range (0-{total_params - 1}).")
                 for i in range(0, end + 1):
                     selected_indices.add(i)
             except ValueError as ve:
-                raise ValueError(f"Invalid 'up_to' selection '{part}': {ve}")
+                raise ValueError(f"Invalid 'up_to' selection '{part}': {ve}") from ve
         elif "-" in part:
             try:
                 start, end = map(int, part.split("-"))
@@ -218,22 +207,18 @@ def parse_selection(selection_str, total_params):
                     raise ValueError(f"Invalid range '{part}': start > end.")
                 for i in range(start, end + 1):
                     if i < 0 or i >= total_params:
-                        raise ValueError(
-                            f"Index {i} out of range (0-{total_params -1})."
-                        )
+                        raise ValueError(f"Index {i} out of range (0-{total_params - 1}).")
                     selected_indices.add(i)
             except ValueError as ve:
-                raise ValueError(f"Invalid range '{part}': {ve}")
+                raise ValueError(f"Invalid range '{part}': {ve}") from ve
         else:
             try:
                 index = int(part)
                 if index < 0 or index >= total_params:
-                    raise ValueError(
-                        f"Index {index} out of range (0-{total_params -1})."
-                    )
+                    raise ValueError(f"Index {index} out of range (0-{total_params - 1}).")
                 selected_indices.add(index)
             except ValueError as ve:
-                raise ValueError(f"Invalid index '{part}': {ve}")
+                raise ValueError(f"Invalid index '{part}': {ve}") from ve
     return sorted(selected_indices)
 
 
@@ -265,9 +250,7 @@ def construct_d_flags(params):
                 else:
                     # Check if the string represents an array or object
                     stripped_value = value.strip()
-                    if (
-                        stripped_value.startswith("[") and stripped_value.endswith("]")
-                    ) or (
+                    if (stripped_value.startswith("[") and stripped_value.endswith("]")) or (
                         stripped_value.startswith("{") and stripped_value.endswith("}")
                     ):
                         # Pass arrays and objects as is
@@ -318,9 +301,7 @@ def export_stl(openscad_path, scad_file, output_file, export_format, d_flags):
     )
     print(f"Running command: {' '.join(command)}")  # Debug print
     try:
-        subprocess.run(
-            command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        )
+        subprocess.run(command, check=True, capture_output=True)
         end_time = time.perf_counter()
         duration = end_time - start_time
         return True, "", duration
@@ -432,9 +413,7 @@ def batch_export(
             else:
                 failures.append((output_file, error))
                 export_times.append(duration)
-                print(
-                    f"Error exporting {output_file}: {error} (Time: {duration:.2f} seconds)"
-                )
+                print(f"Error exporting {output_file}: {error} (Time: {duration:.2f} seconds)")
     else:
         print("Running exports in parallel.")
         # Use ThreadPoolExecutor for I/O-bound operations
@@ -443,8 +422,7 @@ def batch_export(
             iterable = enumerate(parameters)
             # Submit all tasks
             future_to_export = {
-                executor.submit(process_export, idx_param): idx_param
-                for idx_param in iterable
+                executor.submit(process_export, idx_param): idx_param for idx_param in iterable
             }
 
             for future in concurrent.futures.as_completed(future_to_export):
@@ -459,9 +437,7 @@ def batch_export(
                 elif status == "failure":
                     failures.append(info)
                     export_times.append(duration)
-                    print(
-                        f"Error exporting {info[0]}: {info[1]} (Time: {duration:.2f} seconds)"
-                    )
+                    print(f"Error exporting {info[0]}: {info[1]} (Time: {duration:.2f} seconds)")
 
     total_end_time = time.perf_counter()
     total_duration = total_end_time - total_start_time
@@ -494,7 +470,7 @@ def csv_to_json(csv_file, json_file):
     json_data = {"parameterSets": {}}
     for param_set in parameters:
         exported_filename = param_set.get(
-            "exported_filename", f"model_{parameters.index(param_set)+1}"
+            "exported_filename", f"model_{parameters.index(param_set) + 1}"
         )
         # Remove exported_filename from the parameters
         params = {k: v for k, v in param_set.items() if k != "exported_filename"}
@@ -582,7 +558,8 @@ def main():
             gui.main()
         except ImportError:
             print(
-                "GUI module not found. Please ensure 'gui.py' is part of the 'openscad_export' package."
+                "GUI module not found. "
+                "Please ensure 'gui.py' is part of the 'openscad_export' package."
             )
             sys.exit(1)
 

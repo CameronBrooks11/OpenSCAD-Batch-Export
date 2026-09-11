@@ -56,6 +56,10 @@ jobs:
       - name: Install OpenSCAD (nightly AppImage)
         if: matrix.openscad == 'nightly'
         run: |
+          # Runtime libraries the AppImage expects from the host (Qt / EGL stack).
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libegl1 libgl1 libopengl0 libxkbcommon0 libfontconfig1 libdbus-1-3 libglib2.0-0
           url=$(curl -fsSL https://files.openscad.org/snapshots/.snapshot_linux_x86_64.js \
                 | grep -oE "https://[^']+\.AppImage")
           echo "Downloading $url"
@@ -63,6 +67,8 @@ jobs:
           chmod +x openscad.AppImage
           ./openscad.AppImage --appimage-extract >/dev/null
           sudo ln -s "$PWD/squashfs-root/AppRun" /usr/local/bin/openscad
+          # Report anything still unresolved so a failure is diagnosable here.
+          find squashfs-root -type f -name openscad -exec ldd {} \; | grep "not found" || true
 
       - run: openscad --version
       - run: just setup

@@ -117,6 +117,7 @@ def test_failing_case_does_not_stop_the_batch(tmp_path):
 
     result = run_cli("export", scad, params, out)
 
+    assert result.returncode == 1
     assert (out / "good.stl").exists()
     assert not (out / "bad.stl").exists()
     assert "Successful exports: 1" in result.stdout

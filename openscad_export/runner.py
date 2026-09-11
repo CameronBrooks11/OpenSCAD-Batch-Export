@@ -1,12 +1,63 @@
 """Running OpenSCAD: exporting a single parameter set and driving a whole batch."""
 
+from __future__ import annotations
+
 import concurrent.futures
+import logging
 import os
 import subprocess
-import sys
 import time
+from dataclasses import dataclass
 
-from openscad_export.params import construct_d_flags, parse_selection, read_csv, read_json
+from openscad_export.params import construct_d_flags, parse_selection, read_parameters
+
+log = logging.getLogger("openscad_export")
+
+
+@dataclass
+class ExportResult:
+    """Outcome of exporting one parameter set."""
+
+    name: str
+    output_path: str
+    ok: bool
+    returncode: int | None
+    stderr: str
+    duration: float
+
+
+@dataclass
+class BatchResult:
+    """Outcome of a whole batch, with per-case results in input order."""
+
+    results: list[ExportResult]
+    total_duration: float
+
+    @property
+    def successes(self):
+        return [r for r in self.results if r.ok]
+
+    @property
+    def failures(self):
+        return [r for r in self.results if not r.ok]
+
+    def summary(self):
+        """Human-readable summary of the batch."""
+        lines = [
+            "Batch export completed.",
+            f"Total exports attempted: {len(self.results)}",
+            f"Successful exports: {len(self.successes)}",
+        ]
+        if self.successes:
+            lines.append("Successfully exported files:")
+            lines.extend(f"  - {r.output_path}" for r in self.successes)
+        lines.append(f"Failed exports: {len(self.failures)}")
+        if self.failures:
+            lines.append("Failed to export the following files:")
+            lines.extend(f"  - {r.output_path}: {r.stderr}" for r in self.failures)
+        lines.append("")
+        lines.append(f"Total time taken: {self.total_duration:.2f} seconds.")
+        return "\n".join(lines)
 
 
 def ensure_output_folder(folder):
@@ -32,33 +83,25 @@ def export_stl(openscad_path, scad_file, output_file, export_format, d_flags):
         d_flags (list of str): List of -D flags for OpenSCAD.
 
     Returns:
-        tuple:
-            bool: Success status.
-            str: Error message if any.
-            float: Duration of the export process in seconds.
+        ExportResult
     """
+    name = os.path.splitext(os.path.basename(output_file))[0]
+    command = [openscad_path, "-o", output_file, f"--export-format={export_format}"]
+    command += d_flags
+    command.append(scad_file)
+    log.debug("Running command: %s", " ".join(command))
     start_time = time.perf_counter()
-    command = (
-        [
-            openscad_path,
-            "-o",
-            output_file,
-            f"--export-format={export_format}",
-        ]
-        + d_flags
-        + [scad_file]
+    completed = subprocess.run(command, capture_output=True)
+    duration = time.perf_counter() - start_time
+    stderr = completed.stderr.decode(errors="replace").strip()
+    return ExportResult(
+        name=name,
+        output_path=output_file,
+        ok=completed.returncode == 0,
+        returncode=completed.returncode,
+        stderr=stderr if completed.returncode != 0 else "",
+        duration=duration,
     )
-    print(f"Running command: {' '.join(command)}")  # Debug print
-    try:
-        subprocess.run(command, check=True, capture_output=True)
-        end_time = time.perf_counter()
-        duration = end_time - start_time
-        return True, "", duration
-    except subprocess.CalledProcessError as e:
-        error_message = e.stderr.decode().strip()
-        end_time = time.perf_counter()
-        duration = end_time - start_time
-        return False, error_message, duration
 
 
 def batch_export(
@@ -81,127 +124,49 @@ def batch_export(
         export_format (str): Export format ('asciistl' or 'binstl').
         selection (str or None): Selection string to specify which parameter sets to export.
         sequential (bool): Whether to process exports sequentially.
-    """
-    # Determine parameter file type based on extension
-    _, ext = os.path.splitext(parameter_file)
-    ext = ext.lower()
-    if ext == ".csv":
-        parameters = read_csv(parameter_file)
-    elif ext == ".json":
-        parameters = read_json(parameter_file)
-    else:
-        print(f"Unsupported parameter file format: {ext}")
-        sys.exit(1)
 
+    Returns:
+        BatchResult: Per-case results in input order.
+
+    Raises:
+        ValueError: If the parameter file format or the selection string is invalid.
+    """
+    parameters = read_parameters(parameter_file)
     ensure_output_folder(output_folder)
 
-    total_params = len(parameters)
-    selected_indices = None
+    jobs = list(enumerate(parameters))
     if selection:
-        try:
-            selected_indices = parse_selection(selection, total_params)
-            print(f"Selected parameter set indices: {selected_indices}")
-        except ValueError as ve:
-            print(f"Selection parsing error: {ve}")
-            sys.exit(1)
+        selected = set(parse_selection(selection, len(parameters)))
+        log.info("Selected parameter set indices: %s", sorted(selected))
+        jobs = [(idx, params) for idx, params in jobs if idx in selected]
 
-    successes = []
-    failures = []
-    export_times = []
-    total_start_time = time.perf_counter()
-
-    def process_export(idx_param):
-        """
-        Helper function to process a single export task.
-
-        Args:
-            idx_param (tuple): Tuple containing index and parameter set.
-
-        Returns:
-            tuple or None: Result of the export process or None if skipped.
-        """
-        idx, param_set = idx_param
-        if selected_indices is not None and idx not in selected_indices:
-            return None  # Skip non-selected parameter sets
-
+    def process_export(idx, param_set):
         filename = param_set.get("exported_filename", f"model_{idx}")
         output_file = os.path.join(output_folder, f"{filename}.stl")
-
-        # Construct -D flags
-        d_flags = construct_d_flags(param_set)
-
-        # Export STL using OpenSCAD with -D flags
-        success, error, duration = export_stl(
-            openscad_path, scad_file, output_file, export_format, d_flags
+        result = export_stl(
+            openscad_path, scad_file, output_file, export_format, construct_d_flags(param_set)
         )
-        if success:
-            return ("success", output_file, duration)
+        if result.ok:
+            log.info("Exported: %s in %.2f seconds.", result.output_path, result.duration)
         else:
-            return ("failure", (output_file, error), duration)
-
-    if sequential:
-        print("Running exports sequentially.")
-        for idx, param_set in enumerate(parameters):
-            if selected_indices is not None and idx not in selected_indices:
-                continue  # Skip non-selected parameter sets
-
-            filename = param_set.get("exported_filename", f"model_{idx}")
-            output_file = os.path.join(output_folder, f"{filename}.stl")
-
-            # Construct -D flags
-            d_flags = construct_d_flags(param_set)
-
-            # Export STL using OpenSCAD with -D flags
-            success, error, duration = export_stl(
-                openscad_path, scad_file, output_file, export_format, d_flags
+            log.error(
+                "Error exporting %s: %s (Time: %.2f seconds)",
+                result.output_path,
+                result.stderr,
+                result.duration,
             )
-            if success:
-                successes.append(output_file)
-                export_times.append(duration)
-                print(f"Exported: {output_file} in {duration:.2f} seconds.")
-            else:
-                failures.append((output_file, error))
-                export_times.append(duration)
-                print(f"Error exporting {output_file}: {error} (Time: {duration:.2f} seconds)")
+        return idx, result
+
+    total_start_time = time.perf_counter()
+    if sequential:
+        log.info("Running exports sequentially.")
+        indexed = [process_export(idx, params) for idx, params in jobs]
     else:
-        print("Running exports in parallel.")
-        # Use ThreadPoolExecutor for I/O-bound operations
+        log.info("Running exports in parallel.")
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            # Prepare iterable of (index, param_set)
-            iterable = enumerate(parameters)
-            # Submit all tasks
-            future_to_export = {
-                executor.submit(process_export, idx_param): idx_param for idx_param in iterable
-            }
+            futures = [executor.submit(process_export, idx, params) for idx, params in jobs]
+            indexed = [f.result() for f in concurrent.futures.as_completed(futures)]
+    total_duration = time.perf_counter() - total_start_time
 
-            for future in concurrent.futures.as_completed(future_to_export):
-                result = future.result()
-                if result is None:
-                    continue  # Skipped parameter set
-                status, info, duration = result
-                if status == "success":
-                    successes.append(info)
-                    export_times.append(duration)
-                    print(f"Exported: {info} in {duration:.2f} seconds.")
-                elif status == "failure":
-                    failures.append(info)
-                    export_times.append(duration)
-                    print(f"Error exporting {info[0]}: {info[1]} (Time: {duration:.2f} seconds)")
-
-    total_end_time = time.perf_counter()
-    total_duration = total_end_time - total_start_time
-
-    # Summary of the batch export process
-    print("\nBatch export completed.")
-    print(f"Total exports attempted: {len(successes) + len(failures)}")
-    print(f"Successful exports: {len(successes)}")
-    if successes:
-        print("Successfully exported files:")
-        for file in successes:
-            print(f"  - {file}")
-    print(f"Failed exports: {len(failures)}")
-    if failures:
-        print("Failed to export the following files:")
-        for file, error in failures:
-            print(f"  - {file}: {error}")
-    print(f"\nTotal time taken: {total_duration:.2f} seconds.")
+    indexed.sort(key=lambda pair: pair[0])
+    return BatchResult([result for _, result in indexed], total_duration)

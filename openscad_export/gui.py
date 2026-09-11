@@ -16,9 +16,9 @@ Features:
 """
 
 import contextlib
+import logging
 import os
 import subprocess
-import sys
 import threading
 import tkinter as tk
 from datetime import datetime
@@ -393,20 +393,21 @@ class OpenSCADBatchExporterGUI:
             sel (str): Selection string for parameter sets.
             seq (bool): Whether to process exports sequentially.
         """
+        handler = GuiLogHandler(self)
+        logger = logging.getLogger("openscad_export")
+        logger.addHandler(handler)
+        if logger.level == logging.NOTSET or logger.level > logging.INFO:
+            logger.setLevel(logging.INFO)
         try:
-            # Redirect stdout to capture print statements in the GUI log
-            original_stdout = sys.stdout
-            sys.stdout = ExportLogger(self)
-            batch_export(scad, param, output, openscad, fmt, sel, seq)
+            result = batch_export(scad, param, output, openscad, fmt, sel, seq)
+            self.append_log(result.summary())
         except Exception as e:
             self.append_log(f"An error occurred: {str(e)}")
             messagebox.showerror("Error", f"An error occurred during export:\n{str(e)}")
         finally:
-            # Restore original stdout and re-enable controls
-            sys.stdout = original_stdout
+            logger.removeHandler(handler)
             self.enable_controls()
             self.status_label.config(text="Status: Idle", foreground="blue")
-            self.append_log("Batch export completed.")
 
     def update_progress(self):
         """
@@ -576,35 +577,15 @@ class OpenSCADBatchExporterGUI:
         text.configure(yscrollcommand=scrollbar.set)
 
 
-class ExportLogger:
-    """
-    A simple logger class to redirect stdout to the GUI log.
-    """
+class GuiLogHandler(logging.Handler):
+    """Forward log records from the export core to the GUI log panel."""
 
     def __init__(self, gui):
-        """
-        Initialize the ExportLogger.
-
-        Args:
-            gui (OpenSCADBatchExporterGUI): The GUI instance to append logs to.
-        """
+        super().__init__()
         self.gui = gui
 
-    def write(self, message):
-        """
-        Write a message to the GUI log if it's not empty.
-
-        Args:
-            message (str): The message to write.
-        """
-        if message.strip():
-            self.gui.append_log(message.strip())
-
-    def flush(self):
-        """
-        Flush method required for file-like objects. No action needed.
-        """
-        pass  # No action needed
+    def emit(self, record):
+        self.gui.append_log(self.format(record))
 
 
 def main():

@@ -143,9 +143,12 @@ def batch_export(
     def process_export(idx, param_set):
         filename = param_set.get("exported_filename", f"model_{idx}")
         output_file = os.path.join(output_folder, f"{filename}.stl")
-        result = export_stl(
-            openscad_path, scad_file, output_file, export_format, construct_d_flags(param_set)
-        )
+        try:
+            d_flags = construct_d_flags(param_set)
+        except ValueError as e:
+            result = ExportResult(filename, output_file, False, None, str(e), 0.0)
+        else:
+            result = export_stl(openscad_path, scad_file, output_file, export_format, d_flags)
         if result.ok:
             log.info("Exported: %s in %.2f seconds.", result.output_path, result.duration)
         else:

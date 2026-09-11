@@ -123,3 +123,30 @@ def test_failing_case_does_not_stop_the_batch(tmp_path):
     assert "Successful exports: 1" in result.stdout
     assert "Failed exports: 1" in result.stdout
     assert "size must be positive" in result.stdout
+
+
+def test_literal_serialization_survives_openscad(tmp_path):
+    """Values with quotes, backslashes, nested vectors, exponents and undef reach the model
+    intact; the model asserts on every one of them."""
+    scad = tmp_path / "check.scad"
+    scad.write_text(
+        'label = "x"; pts = [0]; code = "0"; n = 0; tiny = 1; path = "p"; maybe = 1;\n'
+        'assert(label == "say \\"hi\\"", str("label=", label));\n'
+        'assert(pts == [1, [2, 3], "a b"], str("pts=", pts));\n'
+        'assert(code == "007", str("code=", code));\n'
+        'assert(n == 1000, str("n=", n));\n'
+        'assert(tiny == 0.00001, str("tiny=", tiny));\n'
+        'assert(path == "C:\\\\dir\\\\f", str("path=", path));\n'
+        'assert(maybe == undef, str("maybe=", maybe));\n'
+        "cube(1);\n"
+    )
+    params = tmp_path / "params.csv"
+    params.write_text(
+        "exported_filename,label,pts,code,n,tiny,path,maybe\n"
+        'ok,"say ""hi""","[1,[2,3],""a b""]","""007""",1e3,1e-05,C:\\dir\\f,undef\n'
+    )
+
+    result = run_cli("export", scad, params, tmp_path / "out")
+
+    assert result.returncode == 0, result.stdout
+    assert (tmp_path / "out" / "ok.stl").exists()

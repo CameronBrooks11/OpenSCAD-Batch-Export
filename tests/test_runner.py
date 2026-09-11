@@ -94,3 +94,17 @@ def test_unsupported_parameter_file_raises(fake_openscad, tmp_path):
 def test_invalid_selection_raises(fake_openscad, params_csv, tmp_path):
     with pytest.raises(ValueError, match="out of range"):
         batch_export(SCAD, params_csv, str(tmp_path / "o"), fake_openscad, "binstl", "0-9", True)
+
+
+def test_bad_parameter_is_a_per_case_failure_and_batch_continues(fake_openscad, tmp_path):
+    csv = tmp_path / "p.csv"
+    csv.write_text('exported_filename,pts\ngood,"[1,2,3]"\nbad,"[1,2"\nalso_good,"[4]"\n')
+    out = tmp_path / "o"
+
+    result = batch_export(SCAD, str(csv), str(out), fake_openscad, "binstl", None, True)
+
+    assert [r.ok for r in result.results] == [True, False, True]
+    bad = result.failures[0]
+    assert bad.returncode is None
+    assert "Parameter 'pts'" in bad.stderr and "missing ']'" in bad.stderr
+    assert (out / "also_good.stl").exists()

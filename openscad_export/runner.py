@@ -9,6 +9,7 @@ import subprocess
 import time
 from dataclasses import dataclass
 
+from openscad_export.engine import detect_engine
 from openscad_export.params import construct_d_flags, parse_selection, read_parameters
 
 log = logging.getLogger("openscad_export")
@@ -120,7 +121,8 @@ def batch_export(
         scad_file (str): Path to the OpenSCAD (.scad) file.
         parameter_file (str): Path to the CSV or JSON file containing parameters.
         output_folder (str): Directory where STL files will be saved.
-        openscad_path (str): Path to the OpenSCAD executable.
+        openscad_path (str or None): Path to or name of the OpenSCAD executable; None to
+            discover it (see :func:`openscad_export.engine.find_openscad`).
         export_format (str): Export format ('asciistl' or 'binstl').
         selection (str or None): Selection string to specify which parameter sets to export.
         sequential (bool): Whether to process exports sequentially.
@@ -129,8 +131,10 @@ def batch_export(
         BatchResult: Per-case results in input order.
 
     Raises:
+        OpenSCADError: If no usable OpenSCAD executable is found.
         ValueError: If the parameter file format or the selection string is invalid.
     """
+    engine = detect_engine(openscad_path)
     parameters = read_parameters(parameter_file)
     ensure_output_folder(output_folder)
 
@@ -148,7 +152,7 @@ def batch_export(
         except ValueError as e:
             result = ExportResult(filename, output_file, False, None, str(e), 0.0)
         else:
-            result = export_stl(openscad_path, scad_file, output_file, export_format, d_flags)
+            result = export_stl(engine.path, scad_file, output_file, export_format, d_flags)
         if result.ok:
             log.info("Exported: %s in %.2f seconds.", result.output_path, result.duration)
         else:

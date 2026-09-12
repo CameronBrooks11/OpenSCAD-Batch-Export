@@ -9,9 +9,13 @@ FAKE_OPENSCAD = textwrap.dedent(
     """\
     import sys
 
-    # Minimal stand-in for `openscad -o OUT --export-format=F -Dk=v ... FILE`.
+    # Minimal stand-in for `openscad --version` and
+    # `openscad -o OUT --export-format=F -Dk=v ... FILE`.
     # Writes the parameter flags to OUT; exits 1 with a message if any -D sets fail=true.
     args = sys.argv[1:]
+    if args == ["--version"]:
+        sys.stderr.write("OpenSCAD version 2021.01\\n")  # the real one prints to stderr
+        sys.exit(0)
     out = args[args.index("-o") + 1]
     d_flags = [a for a in args if a.startswith("-D")]
     if "-Dfail=true" in d_flags:

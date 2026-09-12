@@ -63,7 +63,7 @@ class OpenSCADBatchExporterGUI:
         self.scad_file = tk.StringVar()
         self.parameter_file = tk.StringVar()
         self.output_folder = tk.StringVar()
-        self.openscad_path = tk.StringVar(value="openscad")
+        self.openscad_path = tk.StringVar(value="")
         self.export_format = tk.StringVar(value="binstl")
         self.selection = tk.StringVar()
         self.sequential = tk.BooleanVar()
@@ -356,8 +356,9 @@ class OpenSCADBatchExporterGUI:
             messagebox.showerror("Error", "Please select an output folder.")
             return
 
-        # Validate OpenSCAD Path
-        if openscad.lower() != "openscad":
+        # Validate OpenSCAD Path (empty means auto-detect)
+        openscad = openscad.strip() or None
+        if openscad and os.path.dirname(openscad):
             if not os.path.isfile(openscad):
                 messagebox.showerror("Error", "Please select a valid OpenSCAD executable.")
                 return

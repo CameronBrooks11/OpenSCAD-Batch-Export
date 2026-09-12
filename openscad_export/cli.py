@@ -10,6 +10,7 @@ import argparse
 import logging
 import sys
 
+from openscad_export.engine import OpenSCADError
 from openscad_export.params import csv_to_json, json_to_csv
 from openscad_export.runner import batch_export
 
@@ -48,9 +49,14 @@ def parse_arguments(argv=None):
     )
     export_parser.add_argument("output_folder", help="Directory where STL files will be saved.")
     export_parser.add_argument(
+        "--openscad-path",
         "--openscad_path",
-        default="openscad",
-        help='Path to the OpenSCAD executable. Defaults to "openscad" assuming it is in PATH.',
+        dest="openscad_path",
+        default=None,
+        help=(
+            "Path to the OpenSCAD executable. By default: $OPENSCAD, then 'openscad' on "
+            "PATH, then the platform's default install location."
+        ),
     )
     export_parser.add_argument(
         "--export_format",
@@ -127,7 +133,7 @@ def _run(args):
                 args.select,
                 args.sequential,
             )
-        except ValueError as e:
+        except (OpenSCADError, ValueError) as e:
             print(f"Error: {e}", file=sys.stderr)
             return 1
         print()

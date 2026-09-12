@@ -63,3 +63,21 @@ def test_verbose_shows_the_openscad_command_line(fake_openscad, params_csv, tmp_
 
     assert "Running command: " in verbose_out and "-Dsize=5" in verbose_out
     assert "Running command: " not in quiet_out
+
+
+def test_missing_openscad_is_a_clean_error(params_csv, tmp_path, capsys):
+    code = main(export_args(params_csv, tmp_path, "/nope/openscad"))
+
+    captured = capsys.readouterr()
+    assert code == 1
+    assert captured.err.startswith("Error: OpenSCAD executable not found")
+    assert "Traceback" not in captured.err
+
+
+def test_hyphenated_openscad_path_flag(fake_openscad, params_csv, tmp_path):
+    code = main(
+        ["export", "m.scad", params_csv, str(tmp_path / "o"), "--openscad-path", fake_openscad]
+    )
+
+    assert code == 1  # one deliberately failing case in params_csv; the flag itself parsed
+    assert (tmp_path / "o" / "ok.stl").exists()

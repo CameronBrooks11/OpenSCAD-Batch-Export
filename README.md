@@ -103,7 +103,7 @@ Export STL files using either a CSV or JSON parameter file.
 **Command Structure:**
 
 ```
-openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad_path PATH] [--export_format asciistl|binstl] [--select SELECTION]
+openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad-path PATH] [--export_format asciistl|binstl] [--select SELECTION]
 ```
 
 **Parameters:**
@@ -114,7 +114,7 @@ openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad_
 
 **Options:**
 
-- `--openscad_path`: Path to the OpenSCAD executable. Defaults to `"openscad"` assuming it is in PATH.
+- `--openscad-path`: Path to the OpenSCAD executable. If omitted, `$OPENSCAD` is used, then `openscad` on PATH, then the platform's default install location (`C:\Program Files\OpenSCAD` on Windows, `/Applications/OpenSCAD.app` on macOS).
 - `--export_format`: Export format, either `asciistl` or `binstl`. Defaults to `binstl`.
 - `--select SELECTION`: Select specific parameter sets to export using indices and ranges. Format examples: `'0-5'`, `'1-3,7,10-12'`, `'2,4'`. Indices are zero-based.
 

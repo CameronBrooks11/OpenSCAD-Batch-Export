@@ -108,3 +108,19 @@ def test_bad_parameter_is_a_per_case_failure_and_batch_continues(fake_openscad, 
     assert bad.returncode is None
     assert "Parameter 'pts'" in bad.stderr and "missing ']'" in bad.stderr
     assert (out / "also_good.stl").exists()
+
+
+def test_missing_openscad_fails_before_any_case_runs(params_csv, tmp_path):
+    from openscad_export import OpenSCADNotFound
+
+    out = tmp_path / "never-created"
+    with pytest.raises(OpenSCADNotFound):
+        batch_export(SCAD, params_csv, str(out), "/nope/openscad", "binstl", None, True)
+    assert not out.exists()
+
+
+def test_engine_detection_is_logged(fake_openscad, params_csv, tmp_path, caplog):
+    with caplog.at_level(logging.INFO, logger="openscad_export"):
+        batch_export(SCAD, params_csv, str(tmp_path / "o"), fake_openscad, "binstl", None, True)
+
+    assert f"Using OpenSCAD version 2021.01 at {fake_openscad}" in caplog.text

@@ -92,6 +92,9 @@ def test_path_beats_platform_default(fake_openscad, no_openscad_anywhere, monkey
     assert os.path.normcase(find_openscad()) == os.path.normcase(fake_openscad)
 
 
+@pytest.mark.skipif(
+    os.name == "nt", reason="Windows has no execute bit; os.access(X_OK) is always true"
+)
 def test_existing_but_non_executable_file_is_named_as_such(tmp_path):
     plain = tmp_path / "notexec"
     plain.write_text("")

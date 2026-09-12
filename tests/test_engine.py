@@ -36,9 +36,9 @@ def test_unparseable_version_is_an_error(text):
 
 @pytest.mark.parametrize(
     ("numbers", "expected"),
-    [((2019, 5), False), ((2021, 1), True), ((2026, 9, 5), True)],
+    [((2015, 3), False), ((2019, 5), True), ((2021, 1), True), ((2026, 9, 5), True)],
 )
-def test_parameter_set_support_starts_at_2021_01(numbers, expected):
+def test_parameter_set_support_starts_at_2019_05(numbers, expected):
     assert Engine("x", ".".join(map(str, numbers)), numbers).supports_parameter_sets is expected
 
 
@@ -69,6 +69,36 @@ def test_env_var_is_used_when_nothing_explicit(fake_openscad, no_openscad_anywhe
     assert find_openscad() == fake_openscad
 
 
+def test_env_var_that_does_not_resolve_is_an_error_even_with_path_available(
+    fake_openscad, no_openscad_anywhere, monkeypatch
+):
+    monkeypatch.setenv("PATH", os.path.dirname(fake_openscad))
+    monkeypatch.setenv(engine.ENV_VAR, "/nope/openscad")
+    with pytest.raises(OpenSCADNotFound, match=r"\$OPENSCAD='/nope/openscad'"):
+        find_openscad()
+
+
+def test_env_var_beats_path(fake_openscad, no_openscad_anywhere, monkeypatch, tmp_path):
+    other = _script(tmp_path / "other", "openscad", "import sys; sys.stderr.write('x')")
+    monkeypatch.setenv("PATH", os.path.dirname(other))
+    monkeypatch.setenv(engine.ENV_VAR, fake_openscad)
+    assert find_openscad() == fake_openscad
+
+
+def test_path_beats_platform_default(fake_openscad, no_openscad_anywhere, monkeypatch, tmp_path):
+    other = _script(tmp_path / "default", "openscad", "import sys; sys.stderr.write('x')")
+    monkeypatch.setenv("PATH", os.path.dirname(fake_openscad))
+    monkeypatch.setattr(engine, "PLATFORM_DEFAULTS", {sys.platform: [other]})
+    assert os.path.normcase(find_openscad()) == os.path.normcase(fake_openscad)
+
+
+def test_existing_but_non_executable_file_is_named_as_such(tmp_path):
+    plain = tmp_path / "notexec"
+    plain.write_text("")
+    with pytest.raises(OpenSCADNotFound, match="exists but is not executable"):
+        find_openscad(str(plain))
+
+
 def test_path_lookup_when_no_env_var(fake_openscad, no_openscad_anywhere, monkeypatch):
     monkeypatch.setenv("PATH", os.path.dirname(fake_openscad))
     # shutil.which on Windows returns the PATHEXT spelling of the extension (.CMD)
@@ -95,6 +125,7 @@ def test_detect_engine_reads_the_version(fake_openscad):
 
 
 def _script(tmp_path, name, body):
+    tmp_path.mkdir(exist_ok=True)
     script = tmp_path / f"{name}.py"
     script.write_text(body)
     if os.name == "nt":

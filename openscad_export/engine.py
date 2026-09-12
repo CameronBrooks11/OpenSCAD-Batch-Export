@@ -45,8 +45,8 @@ class Engine:
 
     @property
     def supports_parameter_sets(self) -> bool:
-        """``-p FILE -P SET`` (Customizer parameter sets), added in 2021.01."""
-        return self.version_tuple >= (2021, 1)
+        """``-p FILE -P SET`` (Customizer parameter sets), added in 2019.05."""
+        return self.version_tuple >= (2019, 5)
 
 
 def find_openscad(explicit: str | None = None) -> str:
@@ -74,10 +74,11 @@ def find_openscad(explicit: str | None = None) -> str:
         if resolved:
             return resolved
     tried = ", ".join(label for label, _ in candidates)
-    raise OpenSCADNotFound(
-        f"OpenSCAD executable not found (tried {tried}). "
-        f"Install OpenSCAD, add it to PATH, or pass --openscad-path / set ${ENV_VAR}."
-    )
+    hint = f"Install OpenSCAD, add it to PATH, or pass --openscad-path / set ${ENV_VAR}."
+    for _, candidate in candidates:
+        if os.path.dirname(candidate) and os.path.isfile(candidate):
+            raise OpenSCADNotFound(f"{candidate!r} exists but is not executable. {hint}")
+    raise OpenSCADNotFound(f"OpenSCAD executable not found (tried {tried}). {hint}")
 
 
 def _resolve(candidate: str) -> str | None:
@@ -120,8 +121,14 @@ def detect_engine(explicit: str | None = None) -> Engine:
     """
     path = find_openscad(explicit)
     try:
-        completed = subprocess.run([path, "--version"], capture_output=True, text=True)
-    except OSError as e:
+        completed = subprocess.run(
+            [path, "--version"],
+            capture_output=True,
+            text=True,
+            stdin=subprocess.DEVNULL,
+            timeout=60,
+        )
+    except (OSError, subprocess.TimeoutExpired) as e:
         raise OpenSCADError(f"Could not run {path!r}: {e}") from e
     if completed.returncode != 0:
         raise OpenSCADError(

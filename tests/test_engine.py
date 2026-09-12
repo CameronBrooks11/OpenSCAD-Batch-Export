@@ -71,7 +71,8 @@ def test_env_var_is_used_when_nothing_explicit(fake_openscad, no_openscad_anywhe
 
 def test_path_lookup_when_no_env_var(fake_openscad, no_openscad_anywhere, monkeypatch):
     monkeypatch.setenv("PATH", os.path.dirname(fake_openscad))
-    assert find_openscad() == fake_openscad
+    # shutil.which on Windows returns the PATHEXT spelling of the extension (.CMD)
+    assert os.path.normcase(find_openscad()) == os.path.normcase(fake_openscad)
 
 
 def test_platform_default_is_last_resort(fake_openscad, no_openscad_anywhere, monkeypatch):

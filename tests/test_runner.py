@@ -134,7 +134,7 @@ def params_json(tmp_path):
         '{"fileFormatVersion": "1", "parameterSets": {'
         '"first": {"size": "5", "fail": "false"}, '
         '"second": {"size": "7", "fail": "true"}, '
-        '"third": {"size": "9"}}}'
+        '"Third Größe": {"size": "9"}}}'
     )
     return str(p)
 
@@ -149,7 +149,13 @@ def test_customizer_json_is_passed_natively_with_p_and_P(
     assert "Passing parameter sets natively with -p/-P." in caplog.text
     assert [r.ok for r in result.results] == [True, False, True]
     assert (out / "first.stl").read_text().splitlines() == ["-p", params_json, "-P", "first"]
-    assert (out / "third.stl").read_text().splitlines() == ["-p", params_json, "-P", "third"]
+    # the set name must reach -P untouched: a wrong name makes OpenSCAD export defaults, exit 0
+    assert (out / "Third Größe.stl").read_text().splitlines() == [
+        "-p",
+        params_json,
+        "-P",
+        "Third Größe",
+    ]
     assert "boom" in result.failures[0].stderr
 
 
@@ -174,6 +180,16 @@ def test_json_falls_back_to_d_flags_on_an_engine_without_parameter_sets(
 
     assert "Passing parameters as -D flags." in caplog.text
     assert (out / "first.stl").read_text().splitlines() == ["-Dsize=5", "-Dfail=false"]
+    assert [r.ok for r in result.results] == [True, False, True]
+
+
+def test_parameter_file_may_be_a_path_object(fake_openscad, params_json, tmp_path):
+    from pathlib import Path
+
+    result = batch_export(
+        SCAD, Path(params_json), str(tmp_path / "o"), fake_openscad, "binstl", None, True
+    )
+
     assert [r.ok for r in result.results] == [True, False, True]
 
 

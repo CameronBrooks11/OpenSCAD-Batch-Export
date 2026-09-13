@@ -3,6 +3,7 @@
 Skipped as a whole when `openscad` is not on PATH.
 """
 
+import os
 import shutil
 import struct
 import subprocess
@@ -11,7 +12,10 @@ from pathlib import Path
 
 import pytest
 
-pytestmark = pytest.mark.skipif(shutil.which("openscad") is None, reason="openscad not on PATH")
+pytestmark = pytest.mark.skipif(
+    shutil.which(os.environ.get("OPENSCAD", "openscad")) is None,
+    reason="openscad not on PATH (or $OPENSCAD not resolvable)",
+)
 
 EXAMPLES = Path(__file__).resolve().parents[2] / "examples"
 SIMPLE_CUBE = EXAMPLES / "simpleCube"

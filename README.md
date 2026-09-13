@@ -109,7 +109,7 @@ openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad-
 **Parameters:**
 
 - `<scad_file>`: Path to the OpenSCAD `.scad` file.
-- `<parameter_file>`: Path to the CSV or JSON file containing parameters. A JSON file is an OpenSCAD Customizer parameter-set file and is handed to OpenSCAD natively (`-p FILE -P SET`, OpenSCAD 2019.05+), so each value is typed by the model's own default and keys missing from a set keep the model's defaults. CSV rows are passed as `-D` flags. A case never gets both.
+- `<parameter_file>`: Path to the CSV or JSON file containing parameters. A JSON file is an OpenSCAD Customizer parameter-set file and is handed to OpenSCAD natively (`-p FILE -P SET`, OpenSCAD 2019.05+), so each value is typed by the model's own default and keys missing from a set keep the model's defaults; the CSV conventions below (quote-wrapping to force a string, `undef`) do not apply, OpenSCAD reads the values itself. CSV rows are passed as `-D` flags. A case never gets both.
 - `<output_folder>`: Directory where STL files will be saved.
 
 **Options:**

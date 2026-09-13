@@ -169,7 +169,7 @@ def batch_export(
         output_file = os.path.join(output_folder, f"{filename}.stl")
         try:
             if use_parameter_sets:
-                param_args = ["-p", parameter_file, "-P", param_set["exported_filename"]]
+                param_args = ["-p", os.fspath(parameter_file), "-P", param_set["exported_filename"]]
             else:
                 param_args = construct_d_flags(param_set)
         except ValueError as e:

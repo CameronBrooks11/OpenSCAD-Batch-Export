@@ -49,6 +49,11 @@ def read_json(json_path):
     return parameters
 
 
+def is_parameter_set_file(parameter_file):
+    """True if the file is a Customizer JSON parameter-set file (by extension)."""
+    return os.path.splitext(str(parameter_file))[1].lower() == ".json"
+
+
 def read_parameters(parameter_file):
     """
     Read parameter sets from a CSV or JSON file, chosen by extension.
@@ -198,8 +203,10 @@ def to_scad_literal(value):
 
 def coerce_cell(text):
     """
-    Decide what a parameter value written as text (a CSV cell, or a Customizer JSON
-    string) means, using OpenSCAD's own syntax:
+    Decide what a parameter value written as text means, using OpenSCAD's own syntax.
+    This applies to CSV cells, and to Customizer JSON strings only when they are passed
+    as -D flags (engines older than 2019.05); through -p/-P OpenSCAD interprets JSON
+    values itself, typed by the model's defaults, and these conventions do not apply.
 
     - ``true`` / ``false`` (any case) -> bool; ``undef`` -> None
     - a number in OpenSCAD's grammar (``12``, ``-2.5``, ``.5``, ``1e3``) -> int or float

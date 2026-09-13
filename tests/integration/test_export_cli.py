@@ -3,6 +3,7 @@
 Skipped as a whole when `openscad` is not on PATH.
 """
 
+import os
 import shutil
 import struct
 import subprocess
@@ -11,7 +12,10 @@ from pathlib import Path
 
 import pytest
 
-pytestmark = pytest.mark.skipif(shutil.which("openscad") is None, reason="openscad not on PATH")
+pytestmark = pytest.mark.skipif(
+    shutil.which(os.environ.get("OPENSCAD", "openscad")) is None,
+    reason="openscad not on PATH (or $OPENSCAD not resolvable)",
+)
 
 EXAMPLES = Path(__file__).resolve().parents[2] / "examples"
 SIMPLE_CUBE = EXAMPLES / "simpleCube"
@@ -150,3 +154,35 @@ def test_literal_serialization_survives_openscad(tmp_path):
 
     assert result.returncode == 0, result.stdout
     assert (tmp_path / "out" / "ok.stl").exists()
+
+
+def test_parameter_sets_are_typed_by_the_model_not_by_us(tmp_path):
+    """Through -p/-P, OpenSCAD types each value by the model's default: a string
+    parameter whose value looks numeric stays a string, and keys absent from the set
+    keep the model's defaults. Neither is expressible through -D."""
+    scad = tmp_path / "typed.scad"
+    scad.write_text(
+        'label = "x"; width = 10; depth = 3;\n'
+        'assert(label == "007", str("label=", label));\n'
+        'assert(width == 20, str("width=", width));\n'
+        'assert(depth == 3, str("depth=", depth));\n'
+        "cube([width, depth, 1]);\n"
+    )
+    sets = tmp_path / "sets.json"
+    sets.write_text('{"parameterSets": {"partial": {"label": "007", "width": "20"}}}')
+
+    result = run_cli("-v", "export", scad, sets, tmp_path / "out")
+
+    assert result.returncode == 0, result.stdout
+    assert "Passing parameter sets natively with -p/-P." in result.stdout
+    assert f"-p {sets} -P partial" in result.stdout
+    assert "-Dlabel" not in result.stdout
+
+
+def test_json_via_p_and_csv_via_d_produce_identical_geometry(tmp_path):
+    via_sets, via_flags = tmp_path / "sets", tmp_path / "flags"
+    run_cli("export", SIMPLE_CUBE / "simpleCube.scad", SIMPLE_CUBE / "simpleCube.json", via_sets)
+    run_cli("export", SIMPLE_CUBE / "simpleCube.scad", SIMPLE_CUBE / "simpleCube.csv", via_flags)
+
+    for name in CUBES:
+        assert (via_sets / f"{name}.stl").read_bytes() == (via_flags / f"{name}.stl").read_bytes()

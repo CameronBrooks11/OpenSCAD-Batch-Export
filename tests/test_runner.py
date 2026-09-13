@@ -1,4 +1,5 @@
 import logging
+import os
 
 import pytest
 
@@ -124,3 +125,61 @@ def test_engine_detection_is_logged(fake_openscad, params_csv, tmp_path, caplog)
         batch_export(SCAD, params_csv, str(tmp_path / "o"), fake_openscad, "binstl", None, True)
 
     assert f"Using OpenSCAD version 2021.01 at {fake_openscad}" in caplog.text
+
+
+@pytest.fixture
+def params_json(tmp_path):
+    p = tmp_path / "params.json"
+    p.write_text(
+        '{"fileFormatVersion": "1", "parameterSets": {'
+        '"first": {"size": "5", "fail": "false"}, '
+        '"second": {"size": "7", "fail": "true"}, '
+        '"third": {"size": "9"}}}'
+    )
+    return str(p)
+
+
+def test_customizer_json_is_passed_natively_with_p_and_P(
+    fake_openscad, params_json, tmp_path, caplog
+):
+    out = tmp_path / "o"
+    with caplog.at_level(logging.INFO, logger="openscad_export"):
+        result = batch_export(SCAD, params_json, str(out), fake_openscad, "binstl", None, True)
+
+    assert "Passing parameter sets natively with -p/-P." in caplog.text
+    assert [r.ok for r in result.results] == [True, False, True]
+    assert (out / "first.stl").read_text().splitlines() == ["-p", params_json, "-P", "first"]
+    assert (out / "third.stl").read_text().splitlines() == ["-p", params_json, "-P", "third"]
+    assert "boom" in result.failures[0].stderr
+
+
+def test_csv_is_passed_as_d_flags_never_p(fake_openscad, params_csv, tmp_path, caplog):
+    out = tmp_path / "o"
+    with caplog.at_level(logging.INFO, logger="openscad_export"):
+        batch_export(SCAD, params_csv, str(out), fake_openscad, "binstl", None, True)
+
+    assert "Passing parameters as -D flags." in caplog.text
+    lines = (out / "first.stl").read_text().splitlines()
+    assert lines == ["-Dsize=5", "-Dfail=false"]
+    assert "-p" not in lines
+
+
+def test_json_falls_back_to_d_flags_on_an_engine_without_parameter_sets(
+    fake_openscad, params_json, tmp_path, monkeypatch, caplog
+):
+    monkeypatch.setenv("FAKE_OPENSCAD_VERSION", "2015.03")
+    out = tmp_path / "o"
+    with caplog.at_level(logging.INFO, logger="openscad_export"):
+        result = batch_export(SCAD, params_json, str(out), fake_openscad, "binstl", None, True)
+
+    assert "Passing parameters as -D flags." in caplog.text
+    assert (out / "first.stl").read_text().splitlines() == ["-Dsize=5", "-Dfail=false"]
+    assert [r.ok for r in result.results] == [True, False, True]
+
+
+def test_a_case_never_gets_both_p_and_d(fake_openscad, params_json, params_csv, tmp_path):
+    for source in (params_json, params_csv):
+        out = tmp_path / ("out_" + os.path.basename(source))
+        batch_export(SCAD, source, str(out), fake_openscad, "binstl", None, True)
+        lines = (out / "first.stl").read_text().splitlines()
+        assert ("-p" in lines) != any(line.startswith("-D") for line in lines)

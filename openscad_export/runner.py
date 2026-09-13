@@ -10,7 +10,12 @@ import time
 from dataclasses import dataclass
 
 from openscad_export.engine import detect_engine
-from openscad_export.params import construct_d_flags, parse_selection, read_parameters
+from openscad_export.params import (
+    construct_d_flags,
+    is_parameter_set_file,
+    parse_selection,
+    read_parameters,
+)
 
 log = logging.getLogger("openscad_export")
 
@@ -72,7 +77,7 @@ def ensure_output_folder(folder):
         os.makedirs(folder)
 
 
-def export_stl(openscad_path, scad_file, output_file, export_format, d_flags):
+def export_stl(openscad_path, scad_file, output_file, export_format, param_args):
     """
     Export an STL file using OpenSCAD with the specified parameters.
 
@@ -81,14 +86,15 @@ def export_stl(openscad_path, scad_file, output_file, export_format, d_flags):
         scad_file (str): Path to the OpenSCAD (.scad) file.
         output_file (str): Path where the STL file will be saved.
         export_format (str): Export format ('asciistl' or 'binstl').
-        d_flags (list of str): List of -D flags for OpenSCAD.
+        param_args (list of str): Arguments that supply the parameters: either -D flags
+            or ``["-p", file, "-P", set_name]``.
 
     Returns:
         ExportResult
     """
     name = os.path.splitext(os.path.basename(output_file))[0]
     command = [openscad_path, "-o", output_file, f"--export-format={export_format}"]
-    command += d_flags
+    command += param_args
     command.append(scad_file)
     log.debug("Running command: %s", " ".join(command))
     start_time = time.perf_counter()
@@ -127,6 +133,11 @@ def batch_export(
         selection (str or None): Selection string to specify which parameter sets to export.
         sequential (bool): Whether to process exports sequentially.
 
+    Customizer JSON parameter sets are passed to OpenSCAD with ``-p FILE -P SET`` when
+    the engine supports it (2019.05+); CSV rows are passed as ``-D`` flags. A case never
+    gets both. (If both were given, OpenSCAD applies the parameter set over the -D
+    values — observed on 2021.01 and 2026.09.)
+
     Returns:
         BatchResult: Per-case results in input order.
 
@@ -138,6 +149,15 @@ def batch_export(
     parameters = read_parameters(parameter_file)
     ensure_output_folder(output_folder)
 
+    # Customizer JSON goes to OpenSCAD natively (-p FILE -P SET) when the engine can
+    # take it, so values are typed by the model's own defaults and unset keys keep
+    # them. CSV, and engines older than 2019.05, get the values as -D flags.
+    use_parameter_sets = is_parameter_set_file(parameter_file) and engine.supports_parameter_sets
+    if use_parameter_sets:
+        log.info("Passing parameter sets natively with -p/-P.")
+    else:
+        log.info("Passing parameters as -D flags.")
+
     jobs = list(enumerate(parameters))
     if selection:
         selected = set(parse_selection(selection, len(parameters)))
@@ -148,11 +168,14 @@ def batch_export(
         filename = param_set.get("exported_filename", f"model_{idx}")
         output_file = os.path.join(output_folder, f"{filename}.stl")
         try:
-            d_flags = construct_d_flags(param_set)
+            if use_parameter_sets:
+                param_args = ["-p", parameter_file, "-P", param_set["exported_filename"]]
+            else:
+                param_args = construct_d_flags(param_set)
         except ValueError as e:
             result = ExportResult(filename, output_file, False, None, str(e), 0.0)
         else:
-            result = export_stl(engine.path, scad_file, output_file, export_format, d_flags)
+            result = export_stl(engine.path, scad_file, output_file, export_format, param_args)
         if result.ok:
             log.info("Exported: %s in %.2f seconds.", result.output_path, result.duration)
         else:

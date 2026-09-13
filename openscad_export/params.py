@@ -49,6 +49,11 @@ def read_json(json_path):
     return parameters
 
 
+def is_parameter_set_file(parameter_file):
+    """True if the file is a Customizer JSON parameter-set file (by extension)."""
+    return os.path.splitext(str(parameter_file))[1].lower() == ".json"
+
+
 def read_parameters(parameter_file):
     """
     Read parameter sets from a CSV or JSON file, chosen by extension.

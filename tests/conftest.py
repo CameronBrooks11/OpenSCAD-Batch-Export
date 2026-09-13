@@ -10,19 +10,33 @@ FAKE_OPENSCAD = textwrap.dedent(
     import sys
 
     # Minimal stand-in for `openscad --version` and
-    # `openscad -o OUT --export-format=F -Dk=v ... FILE`.
-    # Writes the parameter flags to OUT; exits 1 with a message if any -D sets fail=true.
+    # `openscad -o OUT --export-format=F (-Dk=v ... | -p FILE -P SET) FILE`.
+    # Writes the parameter arguments to OUT, one per line; exits 1 with a message if a
+    # -D flag or a parameter set asks for fail=true. FAKE_OPENSCAD_VERSION overrides
+    # the reported version.
+    import json
+    import os
+
     args = sys.argv[1:]
     if args == ["--version"]:
-        sys.stderr.write("OpenSCAD version 2021.01\\n")  # the real one prints to stderr
+        version = os.environ.get("FAKE_OPENSCAD_VERSION", "2021.01")
+        sys.stderr.write(f"OpenSCAD version {version}\\n")  # the real one prints to stderr
         sys.exit(0)
     out = args[args.index("-o") + 1]
-    d_flags = [a for a in args if a.startswith("-D")]
-    if "-Dfail=true" in d_flags:
+    param_args = [a for a in args if a.startswith("-D")]
+    if "-p" in args:
+        sets_file, set_name = args[args.index("-p") + 1], args[args.index("-P") + 1]
+        param_args += ["-p", sets_file, "-P", set_name]
+        with open(sets_file) as f:
+            values = json.load(f)["parameterSets"][set_name]
+        if str(values.get("fail", "")).lower() == "true":
+            sys.stderr.write("boom: fail requested\\n")
+            sys.exit(1)
+    if "-Dfail=true" in param_args:
         sys.stderr.write("boom: fail requested\\n")
         sys.exit(1)
     with open(out, "w") as f:
-        f.write("\\n".join(d_flags))
+        f.write("\\n".join(param_args))
     """
 )
 

@@ -59,11 +59,27 @@ def parse_arguments(argv=None):
         ),
     )
     export_parser.add_argument(
+        "--format",
+        action="append",
+        metavar="EXT",
+        help=(
+            "Output format by extension (stl, off, 3mf, png, csg, ...), as accepted by the "
+            "detected OpenSCAD's -o. Repeat to export every case in several formats. "
+            "Defaults to stl."
+        ),
+    )
+    export_parser.add_argument(
+        "--export-format",
         "--export_format",
+        dest="export_format",
         choices=["asciistl", "binstl"],
         default="binstl",
-        help="Export format: asciistl or binstl. Defaults to binstl.",
+        help="STL flavour: asciistl or binstl. Defaults to binstl. Only applies to stl.",
     )
+    image_group = export_parser.add_argument_group("image output (png)")
+    image_group.add_argument("--camera", help="OpenSCAD --camera, e.g. 0,0,0,55,0,25,140")
+    image_group.add_argument("--imgsize", help="OpenSCAD --imgsize, e.g. 1024,768")
+    image_group.add_argument("--colorscheme", help="OpenSCAD --colorscheme, e.g. Tomorrow")
     export_parser.add_argument(
         "--select",
         type=str,
@@ -132,6 +148,8 @@ def _run(args):
                 args.export_format,
                 args.select,
                 args.sequential,
+                formats=args.format or ["stl"],
+                image_options={k: getattr(args, k) for k in ("camera", "imgsize", "colorscheme")},
             )
         except (OpenSCADError, ValueError) as e:
             print(f"Error: {e}", file=sys.stderr)

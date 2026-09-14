@@ -81,3 +81,59 @@ def test_hyphenated_openscad_path_flag(fake_openscad, params_csv, tmp_path):
 
     assert code == 1  # one deliberately failing case in params_csv; the flag itself parsed
     assert (tmp_path / "o" / "ok.stl").exists()
+
+
+def test_format_flag_repeats_and_defaults_to_stl(fake_openscad, params_csv, tmp_path):
+    main(
+        export_args(
+            params_csv,
+            tmp_path,
+            fake_openscad,
+            "--select",
+            "0",
+            "--format",
+            "png",
+            "--format",
+            "off",
+        )
+    )
+    main(
+        [
+            "export",
+            "m.scad",
+            params_csv,
+            str(tmp_path / "default"),
+            "--openscad-path",
+            fake_openscad,
+            "--select",
+            "0",
+        ]
+    )
+
+    assert sorted(p.name for p in (tmp_path / "out").iterdir()) == ["ok.off", "ok.png"]
+    assert [p.name for p in (tmp_path / "default").iterdir()] == ["ok.stl"]
+
+
+def test_unsupported_format_is_a_clean_error(fake_openscad, params_csv, tmp_path, capsys):
+    code = main(export_args(params_csv, tmp_path, fake_openscad, "--format", "xyz"))
+
+    assert code == 1
+    assert capsys.readouterr().err.startswith("Error: Output format(s) xyz not supported")
+
+
+def test_image_flags_reach_openscad(fake_openscad, params_csv, tmp_path):
+    main(
+        export_args(
+            params_csv,
+            tmp_path,
+            fake_openscad,
+            "--select",
+            "0",
+            "--format",
+            "png",
+            "--imgsize",
+            "320,240",
+        )
+    )
+
+    assert "--imgsize=320,240" in (tmp_path / "out" / "ok.png").read_text().splitlines()

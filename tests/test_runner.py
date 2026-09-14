@@ -50,7 +50,8 @@ def test_parameters_reach_the_command_line(fake_openscad, params_csv, tmp_path):
     out = tmp_path / "o"
     batch_export(SCAD, params_csv, str(out), fake_openscad, "binstl", None, True)
 
-    assert (out / "first.stl").read_text().splitlines() == ["-Dsize=5", "-Dfail=false"]
+    lines = (out / "first.stl").read_text().splitlines()
+    assert lines == ["--export-format=binstl", "-Dsize=5", "-Dfail=false"]
 
 
 def test_selection_is_applied(fake_openscad, params_csv, tmp_path):
@@ -148,14 +149,11 @@ def test_customizer_json_is_passed_natively_with_p_and_P(
 
     assert "Passing parameter sets natively with -p/-P." in caplog.text
     assert [r.ok for r in result.results] == [True, False, True]
-    assert (out / "first.stl").read_text().splitlines() == ["-p", params_json, "-P", "first"]
+    first = (out / "first.stl").read_text().splitlines()
+    assert first == ["--export-format=binstl", "-p", params_json, "-P", "first"]
     # the set name must reach -P untouched: a wrong name makes OpenSCAD export defaults, exit 0
-    assert (out / "Third Größe.stl").read_text().splitlines() == [
-        "-p",
-        params_json,
-        "-P",
-        "Third Größe",
-    ]
+    third = (out / "Third Größe.stl").read_text().splitlines()
+    assert third == ["--export-format=binstl", "-p", params_json, "-P", "Third Größe"]
     assert "boom" in result.failures[0].stderr
 
 
@@ -166,7 +164,7 @@ def test_csv_is_passed_as_d_flags_never_p(fake_openscad, params_csv, tmp_path, c
 
     assert "Passing parameters as -D flags." in caplog.text
     lines = (out / "first.stl").read_text().splitlines()
-    assert lines == ["-Dsize=5", "-Dfail=false"]
+    assert lines == ["--export-format=binstl", "-Dsize=5", "-Dfail=false"]
     assert "-p" not in lines
 
 
@@ -179,7 +177,8 @@ def test_json_falls_back_to_d_flags_on_an_engine_without_parameter_sets(
         result = batch_export(SCAD, params_json, str(out), fake_openscad, "binstl", None, True)
 
     assert "Passing parameters as -D flags." in caplog.text
-    assert (out / "first.stl").read_text().splitlines() == ["-Dsize=5", "-Dfail=false"]
+    lines = (out / "first.stl").read_text().splitlines()
+    assert lines == ["--export-format=binstl", "-Dsize=5", "-Dfail=false"]
     assert [r.ok for r in result.results] == [True, False, True]
 
 
@@ -199,3 +198,109 @@ def test_a_case_never_gets_both_p_and_d(fake_openscad, params_json, params_csv, 
         batch_export(SCAD, source, str(out), fake_openscad, "binstl", None, True)
         lines = (out / "first.stl").read_text().splitlines()
         assert ("-p" in lines) != any(line.startswith("-D") for line in lines)
+
+
+@pytest.mark.parametrize("sequential", [True, False])
+def test_every_case_is_exported_in_every_format_in_order(
+    fake_openscad, params_csv, tmp_path, sequential
+):
+    out = tmp_path / "o"
+
+    result = batch_export(
+        SCAD,
+        params_csv,
+        str(out),
+        fake_openscad,
+        "binstl",
+        None,
+        sequential,
+        formats=["stl", "png"],
+    )
+
+    assert [(r.name, r.format) for r in result.results] == [
+        ("first", "stl"),
+        ("first", "png"),
+        ("second", "stl"),
+        ("second", "png"),
+        ("third", "stl"),
+        ("third", "png"),
+    ]
+    assert (out / "first.png").exists() and (out / "third.stl").exists()
+    assert [r.ok for r in result.results] == [True, True, False, False, True, True]
+
+
+def test_export_format_flag_only_applies_to_stl(fake_openscad, params_csv, tmp_path):
+    out = tmp_path / "o"
+    batch_export(
+        SCAD, params_csv, str(out), fake_openscad, "asciistl", "0", True, formats=["stl", "off"]
+    )
+
+    assert (out / "first.stl").read_text().splitlines()[0] == "--export-format=asciistl"
+    assert not (out / "first.off").read_text().startswith("--export-format")
+
+
+def test_unsupported_format_is_rejected_using_the_engines_list(fake_openscad, params_csv, tmp_path):
+    with pytest.raises(
+        ValueError, match=r"xyz not supported by OpenSCAD 2021.01; it accepts: 3mf, csg"
+    ):
+        batch_export(
+            SCAD,
+            params_csv,
+            str(tmp_path / "o"),
+            fake_openscad,
+            "binstl",
+            None,
+            True,
+            formats=["xyz"],
+        )
+    assert not (tmp_path / "o").exists()
+
+
+def test_formats_are_not_validated_when_the_engine_list_is_unknown(
+    fake_openscad, params_csv, tmp_path, monkeypatch
+):
+    monkeypatch.setenv("FAKE_OPENSCAD_FORMATS", "")
+    result = batch_export(
+        SCAD, params_csv, str(tmp_path / "o"), fake_openscad, "binstl", "0", True, formats=["wrl"]
+    )
+    assert result.results[0].format == "wrl" and result.results[0].ok
+
+
+def test_format_is_normalised(fake_openscad, params_csv, tmp_path):
+    result = batch_export(
+        SCAD, params_csv, str(tmp_path / "o"), fake_openscad, "binstl", "0", True, formats=[".PNG"]
+    )
+    assert result.results[0].output_path.endswith("first.png")
+
+
+def test_image_options_are_passed_through(fake_openscad, params_csv, tmp_path):
+    out = tmp_path / "o"
+    batch_export(
+        SCAD,
+        params_csv,
+        str(out),
+        fake_openscad,
+        "binstl",
+        "0",
+        True,
+        formats=["png"],
+        image_options={"camera": "0,0,0,55,0,25,140", "imgsize": "640,480", "colorscheme": None},
+    )
+
+    lines = (out / "first.png").read_text().splitlines()
+    assert "--camera=0,0,0,55,0,25,140" in lines and "--imgsize=640,480" in lines
+    assert not any(line.startswith("--colorscheme") for line in lines)
+
+
+def test_unknown_image_option_is_rejected(fake_openscad, params_csv, tmp_path):
+    with pytest.raises(ValueError, match="Unknown image option"):
+        batch_export(
+            SCAD,
+            params_csv,
+            str(tmp_path / "o"),
+            fake_openscad,
+            "binstl",
+            None,
+            True,
+            image_options={"projection": "ortho"},
+        )

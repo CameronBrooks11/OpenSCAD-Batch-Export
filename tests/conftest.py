@@ -22,8 +22,21 @@ FAKE_OPENSCAD = textwrap.dedent(
         version = os.environ.get("FAKE_OPENSCAD_VERSION", "2021.01")
         sys.stderr.write(f"OpenSCAD version {version}\\n")  # the real one prints to stderr
         sys.exit(0)
+    formats = os.environ.get("FAKE_OPENSCAD_FORMATS", "stl, off, 3mf, csg, png")
+    if args == ["--help"]:
+        if formats:
+            sys.stdout.write("  -o [ --o ] arg  output specified file instead of running the\\n")
+            sys.stdout.write("                  GUI, the file extension specifies the type: ")
+            sys.stdout.write(f"{formats}\\n")
+            sys.stdout.write("                  (May be used multiple time).\\n")
+        sys.exit(0)
     out = args[args.index("-o") + 1]
-    param_args = [a for a in args if a.startswith("-D")]
+    ext = out.rsplit(".", 1)[-1]
+    if formats and ext not in [f.strip() for f in formats.split(",")]:
+        sys.stderr.write(f"Unknown suffix for output file {out}\\n")
+        sys.exit(1)
+    recorded = ("-D", "--export-format", "--camera", "--imgsize", "--colorscheme")
+    param_args = [a for a in args if a.startswith(recorded)]
     if "-p" in args:
         sets_file, set_name = args[args.index("-p") + 1], args[args.index("-P") + 1]
         param_args += ["-p", sets_file, "-P", set_name]

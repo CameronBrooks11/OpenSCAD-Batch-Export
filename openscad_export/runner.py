@@ -30,6 +30,7 @@ class ExportResult:
     returncode: int | None
     stderr: str
     duration: float
+    format: str = "stl"
 
 
 @dataclass
@@ -77,23 +78,29 @@ def ensure_output_folder(folder):
         os.makedirs(folder)
 
 
-def export_stl(openscad_path, scad_file, output_file, export_format, param_args):
+def export_stl(openscad_path, scad_file, output_file, export_format, param_args, extra_args=()):
     """
-    Export an STL file using OpenSCAD with the specified parameters.
+    Export one file using OpenSCAD with the specified parameters. The output format is
+    chosen by ``output_file``'s extension, as OpenSCAD's ``-o`` does.
 
     Args:
         openscad_path (str): Path to the OpenSCAD executable.
         scad_file (str): Path to the OpenSCAD (.scad) file.
-        output_file (str): Path where the STL file will be saved.
-        export_format (str): Export format ('asciistl' or 'binstl').
+        output_file (str): Path where the file will be saved.
+        export_format (str or None): ``--export-format`` value ('asciistl' or 'binstl'
+            for STL output); None to let the extension decide.
         param_args (list of str): Arguments that supply the parameters: either -D flags
             or ``["-p", file, "-P", set_name]``.
+        extra_args (list of str): Further OpenSCAD options, e.g. ``--camera=...``.
 
     Returns:
         ExportResult
     """
-    name = os.path.splitext(os.path.basename(output_file))[0]
-    command = [openscad_path, "-o", output_file, f"--export-format={export_format}"]
+    name, ext = os.path.splitext(os.path.basename(output_file))
+    command = [openscad_path, "-o", output_file]
+    if export_format:
+        command.append(f"--export-format={export_format}")
+    command += list(extra_args)
     command += param_args
     command.append(scad_file)
     log.debug("Running command: %s", " ".join(command))
@@ -108,7 +115,11 @@ def export_stl(openscad_path, scad_file, output_file, export_format, param_args)
         returncode=completed.returncode,
         stderr=stderr if completed.returncode != 0 else "",
         duration=duration,
+        format=ext.lstrip(".").lower(),
     )
+
+
+IMAGE_OPTIONS = ("camera", "imgsize", "colorscheme")
 
 
 def batch_export(
@@ -119,9 +130,11 @@ def batch_export(
     export_format,
     selection,
     sequential,
+    formats=("stl",),
+    image_options=None,
 ):
     """
-    Perform batch export of STL files based on parameter sets.
+    Perform batch export of files based on parameter sets.
 
     Args:
         scad_file (str): Path to the OpenSCAD (.scad) file.
@@ -132,6 +145,11 @@ def batch_export(
         export_format (str): Export format ('asciistl' or 'binstl').
         selection (str or None): Selection string to specify which parameter sets to export.
         sequential (bool): Whether to process exports sequentially.
+        formats (sequence of str): Output extensions, e.g. ``("stl", "png")``; every case
+            is exported in every format. Validated against what the engine's ``--help``
+            lists for ``-o`` when that is readable.
+        image_options (dict or None): ``camera``, ``imgsize``, ``colorscheme`` values
+            passed through as OpenSCAD's ``--camera=``, ``--imgsize=``, ``--colorscheme=``.
 
     Customizer JSON parameter sets are passed to OpenSCAD with ``-p FILE -P SET`` when
     the engine supports it (2019.05+); CSV rows are passed as ``-D`` flags. A case never
@@ -143,9 +161,24 @@ def batch_export(
 
     Raises:
         OpenSCADError: If no usable OpenSCAD executable is found.
-        ValueError: If the parameter file format or the selection string is invalid.
+        ValueError: If the parameter file format, the selection string, or a requested
+            output format is invalid.
     """
     engine = detect_engine(openscad_path)
+    formats = [f.lstrip(".").lower() for f in formats]
+    if not formats:
+        raise ValueError("At least one output format is required")
+    if engine.export_formats is not None:
+        unsupported = [f for f in formats if f not in engine.export_formats]
+        if unsupported:
+            raise ValueError(
+                f"Output format(s) {', '.join(unsupported)} not supported by OpenSCAD "
+                f"{engine.version}; it accepts: {', '.join(sorted(engine.export_formats))}"
+            )
+    extra_args = [f"--{key}={value}" for key, value in (image_options or {}).items() if value]
+    unknown = set(image_options or {}) - set(IMAGE_OPTIONS)
+    if unknown:
+        raise ValueError(f"Unknown image option(s): {', '.join(sorted(unknown))}")
     parameters = read_parameters(parameter_file)
     ensure_output_folder(output_folder)
 
@@ -164,18 +197,25 @@ def batch_export(
         log.info("Selected parameter set indices: %s", sorted(selected))
         jobs = [(idx, params) for idx, params in jobs if idx in selected]
 
-    def process_export(idx, param_set):
+    def process_export(idx, param_set, fmt):
         filename = param_set.get("exported_filename", f"model_{idx}")
-        output_file = os.path.join(output_folder, f"{filename}.stl")
+        output_file = os.path.join(output_folder, f"{filename}.{fmt}")
         try:
             if use_parameter_sets:
                 param_args = ["-p", os.fspath(parameter_file), "-P", param_set["exported_filename"]]
             else:
                 param_args = construct_d_flags(param_set)
         except ValueError as e:
-            result = ExportResult(filename, output_file, False, None, str(e), 0.0)
+            result = ExportResult(filename, output_file, False, None, str(e), 0.0, fmt)
         else:
-            result = export_stl(engine.path, scad_file, output_file, export_format, param_args)
+            result = export_stl(
+                engine.path,
+                scad_file,
+                output_file,
+                export_format if fmt == "stl" else None,
+                param_args,
+                extra_args,
+            )
         if result.ok:
             log.info("Exported: %s in %.2f seconds.", result.output_path, result.duration)
         else:
@@ -185,16 +225,17 @@ def batch_export(
                 result.stderr,
                 result.duration,
             )
-        return idx, result
+        return (idx, formats.index(fmt)), result
 
+    tasks = [(idx, params, fmt) for idx, params in jobs for fmt in formats]
     total_start_time = time.perf_counter()
     if sequential:
         log.info("Running exports sequentially.")
-        indexed = [process_export(idx, params) for idx, params in jobs]
+        indexed = [process_export(*task) for task in tasks]
     else:
         log.info("Running exports in parallel.")
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            futures = [executor.submit(process_export, idx, params) for idx, params in jobs]
+            futures = [executor.submit(process_export, *task) for task in tasks]
             indexed = [f.result() for f in concurrent.futures.as_completed(futures)]
     total_duration = time.perf_counter() - total_start_time
 

@@ -117,7 +117,7 @@ openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad-
 - `--openscad-path`: Path to the OpenSCAD executable. If omitted, `$OPENSCAD` is used, then `openscad` on PATH, then the platform's default install location (`C:\Program Files\OpenSCAD` on Windows, `/Applications/OpenSCAD.app` on macOS).
 - `--format EXT`: Output format by file extension, as OpenSCAD's `-o` accepts it (`stl`, `off`, `3mf`, `png`, `csg`, ... — the detected OpenSCAD's own list is used, so an unsupported one is refused before anything runs). Repeat the flag to export every case in several formats. Defaults to `stl`.
 - `--export-format`: STL flavour, `asciistl` or `binstl`. Defaults to `binstl`. Only applies to `stl`.
-- `--camera`, `--imgsize`, `--colorscheme`: passed straight to OpenSCAD for `png` output, e.g. `--format png --imgsize 1024,768 --camera 0,0,0,55,0,25,140`.
+- `--camera`, `--imgsize`, `--colorscheme`: passed straight to OpenSCAD for `png` output, e.g. `--format png --imgsize 1024,768 --camera 0,0,0,55,0,25,140`. OpenSCAD 2021.01 needs a display to render PNG (`xvfb-run openscad-export ...` on a headless Linux box); current builds render offscreen.
 - `--select SELECTION`: Select specific parameter sets to export using indices and ranges. Format examples: `'0-5'`, `'1-3,7,10-12'`, `'2,4'`. Indices are zero-based.
 
 **Examples:**

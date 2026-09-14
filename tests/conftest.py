@@ -22,7 +22,9 @@ FAKE_OPENSCAD = textwrap.dedent(
         version = os.environ.get("FAKE_OPENSCAD_VERSION", "2021.01")
         sys.stderr.write(f"OpenSCAD version {version}\\n")  # the real one prints to stderr
         sys.exit(0)
+    # "none" means "print no format list" (Windows drops empty environment variables).
     formats = os.environ.get("FAKE_OPENSCAD_FORMATS", "stl, off, 3mf, csg, png")
+    formats = "" if formats.lower() == "none" else formats
     if args == ["--help"]:
         if formats:
             sys.stdout.write("  -o [ --o ] arg  output specified file instead of running the\\n")

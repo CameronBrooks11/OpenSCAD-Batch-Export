@@ -217,5 +217,5 @@ def test_parse_export_formats_is_none_when_help_has_no_list():
 
 
 def test_detect_engine_tolerates_unreadable_help(fake_openscad, monkeypatch):
-    monkeypatch.setenv("FAKE_OPENSCAD_FORMATS", "")
+    monkeypatch.setenv("FAKE_OPENSCAD_FORMATS", "none")
     assert detect_engine(fake_openscad).export_formats is None

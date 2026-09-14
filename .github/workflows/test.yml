@@ -50,8 +50,9 @@ jobs:
       - name: Install OpenSCAD (stable, apt)
         if: matrix.openscad == 'stable'
         run: |
+          # 2021.01 needs an X display to render PNG; xvfb provides one headless.
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends openscad
+          sudo apt-get install -y --no-install-recommends openscad xvfb
 
       - name: Install OpenSCAD (nightly AppImage)
         if: matrix.openscad == 'nightly'
@@ -72,7 +73,7 @@ jobs:
 
       - run: openscad --version
       - run: just setup
-      - run: just test
+      - run: ${{ matrix.openscad == 'stable' && 'xvfb-run -a' || '' }} just test
 
   test-windows:
     name: Unit tests (Windows, py3.13)

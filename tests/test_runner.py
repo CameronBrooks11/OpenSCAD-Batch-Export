@@ -259,7 +259,7 @@ def test_unsupported_format_is_rejected_using_the_engines_list(fake_openscad, pa
 def test_formats_are_not_validated_when_the_engine_list_is_unknown(
     fake_openscad, params_csv, tmp_path, monkeypatch
 ):
-    monkeypatch.setenv("FAKE_OPENSCAD_FORMATS", "")
+    monkeypatch.setenv("FAKE_OPENSCAD_FORMATS", "none")
     result = batch_export(
         SCAD, params_csv, str(tmp_path / "o"), fake_openscad, "binstl", "0", True, formats=["wrl"]
     )

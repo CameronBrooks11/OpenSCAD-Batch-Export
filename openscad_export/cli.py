@@ -65,7 +65,8 @@ def parse_arguments(argv=None):
         help=(
             "Output format by extension (stl, off, 3mf, png, csg, ...), as accepted by the "
             "detected OpenSCAD's -o. Repeat to export every case in several formats. "
-            "Defaults to stl."
+            "Defaults to stl. A format the build does not advertise is warned about, "
+            "not refused."
         ),
     )
     export_parser.add_argument(

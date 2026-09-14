@@ -146,8 +146,8 @@ def batch_export(
         selection (str or None): Selection string to specify which parameter sets to export.
         sequential (bool): Whether to process exports sequentially.
         formats (sequence of str): Output extensions, e.g. ``("stl", "png")``; every case
-            is exported in every format. Validated against what the engine's ``--help``
-            lists for ``-o`` when that is readable.
+            is exported in every format (duplicates collapsed). A format the engine's
+            ``--help`` does not list for ``-o`` is warned about, not refused.
         image_options (dict or None): ``camera``, ``imgsize``, ``colorscheme`` values
             passed through as OpenSCAD's ``--camera=``, ``--imgsize=``, ``--colorscheme=``.
 
@@ -161,19 +161,24 @@ def batch_export(
 
     Raises:
         OpenSCADError: If no usable OpenSCAD executable is found.
-        ValueError: If the parameter file format, the selection string, or a requested
-            output format is invalid.
+        ValueError: If the parameter file format, the selection string, or an image
+            option is invalid.
     """
     engine = detect_engine(openscad_path)
-    formats = [f.lstrip(".").lower() for f in formats]
+    formats = list(dict.fromkeys(f.lstrip(".").lower() for f in formats))
     if not formats:
         raise ValueError("At least one output format is required")
     if engine.export_formats is not None:
-        unsupported = [f for f in formats if f not in engine.export_formats]
-        if unsupported:
-            raise ValueError(
-                f"Output format(s) {', '.join(unsupported)} not supported by OpenSCAD "
-                f"{engine.version}; it accepts: {', '.join(sorted(engine.export_formats))}"
+        # The --help list is what the build advertises, not everything it accepts
+        # (2026 builds write .obj without listing it), so this is a warning; a format
+        # OpenSCAD really cannot write fails per case with its own message.
+        unlisted = [f for f in formats if f not in engine.export_formats]
+        if unlisted:
+            log.warning(
+                "Output format(s) %s not listed by OpenSCAD %s, which advertises: %s",
+                ", ".join(unlisted),
+                engine.version,
+                ", ".join(sorted(engine.export_formats)),
             )
     extra_args = [f"--{key}={value}" for key, value in (image_options or {}).items() if value]
     unknown = set(image_options or {}) - set(IMAGE_OPTIONS)

@@ -140,6 +140,7 @@ def detect_engine(explicit: str | None = None) -> Engine:
             [path, "--version"],
             capture_output=True,
             text=True,
+            errors="replace",
             stdin=subprocess.DEVNULL,
             timeout=60,
         )
@@ -158,6 +159,7 @@ def detect_engine(explicit: str | None = None) -> Engine:
             [path, "--help"],
             capture_output=True,
             text=True,
+            errors="replace",
             stdin=subprocess.DEVNULL,
             timeout=60,
         )

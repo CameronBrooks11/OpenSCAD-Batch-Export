@@ -239,31 +239,64 @@ def test_export_format_flag_only_applies_to_stl(fake_openscad, params_csv, tmp_p
     assert not (out / "first.off").read_text().startswith("--export-format")
 
 
-def test_unsupported_format_is_rejected_using_the_engines_list(fake_openscad, params_csv, tmp_path):
-    with pytest.raises(
-        ValueError, match=r"xyz not supported by OpenSCAD 2021.01; it accepts: 3mf, csg"
-    ):
-        batch_export(
+def test_unlisted_formats_are_warned_about_not_refused(fake_openscad, params_csv, tmp_path, caplog):
+    out = tmp_path / "o"
+    with caplog.at_level(logging.WARNING, logger="openscad_export"):
+        result = batch_export(
+            SCAD,
+            params_csv,
+            str(out),
+            fake_openscad,
+            "binstl",
+            "0",
+            True,
+            formats=["xyz", "abc", "off"],
+        )
+
+    assert (
+        "xyz, abc not listed by OpenSCAD 2021.01, which advertises: 3mf, csg, off, png, stl"
+        in caplog.text
+    )
+    # the engine itself decides: the fake refuses unknown suffixes, so those cases fail
+    assert [(r.format, r.ok) for r in result.results] == [
+        ("xyz", False),
+        ("abc", False),
+        ("off", True),
+    ]
+    assert "Unknown suffix" in result.failures[0].stderr
+
+
+def test_duplicate_formats_collapse_to_one_export(fake_openscad, params_csv, tmp_path):
+    result = batch_export(
+        SCAD,
+        params_csv,
+        str(tmp_path / "o"),
+        fake_openscad,
+        "binstl",
+        "0",
+        False,
+        formats=["stl", "STL", ".stl"],
+    )
+    assert [r.format for r in result.results] == ["stl"]
+
+
+def test_no_warning_when_the_engine_list_is_unknown(
+    fake_openscad, params_csv, tmp_path, monkeypatch, caplog
+):
+    monkeypatch.setenv("FAKE_OPENSCAD_FORMATS", "none")
+    with caplog.at_level(logging.WARNING, logger="openscad_export"):
+        result = batch_export(
             SCAD,
             params_csv,
             str(tmp_path / "o"),
             fake_openscad,
             "binstl",
-            None,
+            "0",
             True,
-            formats=["xyz"],
+            formats=["wrl"],
         )
-    assert not (tmp_path / "o").exists()
-
-
-def test_formats_are_not_validated_when_the_engine_list_is_unknown(
-    fake_openscad, params_csv, tmp_path, monkeypatch
-):
-    monkeypatch.setenv("FAKE_OPENSCAD_FORMATS", "none")
-    result = batch_export(
-        SCAD, params_csv, str(tmp_path / "o"), fake_openscad, "binstl", "0", True, formats=["wrl"]
-    )
     assert result.results[0].format == "wrl" and result.results[0].ok
+    assert "not listed" not in caplog.text
 
 
 def test_format_is_normalised(fake_openscad, params_csv, tmp_path):

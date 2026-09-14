@@ -124,7 +124,9 @@ def test_not_found_message_lists_what_was_tried(no_openscad_anywhere):
 
 def test_detect_engine_reads_the_version(fake_openscad):
     found = detect_engine(fake_openscad)
-    assert found == Engine(fake_openscad, "2021.01", (2021, 1))
+    assert found == Engine(
+        fake_openscad, "2021.01", (2021, 1), frozenset({"stl", "off", "3mf", "csg", "png"})
+    )
 
 
 def _script(tmp_path, name, body):
@@ -151,3 +153,69 @@ def test_detect_engine_reports_a_failing_version_call(tmp_path):
     broken = _script(tmp_path, "broken", "import sys; sys.stderr.write('bad'); sys.exit(3)\n")
     with pytest.raises(OpenSCADError, match="exited with 3: bad"):
         detect_engine(broken)
+
+
+@pytest.mark.parametrize(
+    ("help_text", "expected"),
+    [
+        (
+            "  -o [ --o ] arg  output specified file instead of running the\n"
+            "                  GUI, the file extension specifies the type: stl,\n"
+            "                  off, amf, 3mf, csg, dxf, svg, pdf, png, echo,\n"
+            "                  ast, term, nef3, nefdbg (May be used multiple\n",
+            {
+                "stl",
+                "off",
+                "amf",
+                "3mf",
+                "csg",
+                "dxf",
+                "svg",
+                "pdf",
+                "png",
+                "echo",
+                "ast",
+                "term",
+                "nef3",
+                "nefdbg",
+            },
+        ),
+        (
+            "  -o [ --o ] arg  output specified file instead of running\n"
+            "                  the GUI. The file extension specifies the\n"
+            "                  type: stl, off, wrl, 3mf, csg, dxf, svg,\n"
+            "                  pdf, png, echo, ast, term, nef3, nefdbg,\n"
+            "                  param, pov. May be used multiple times for\n",
+            {
+                "stl",
+                "off",
+                "wrl",
+                "3mf",
+                "csg",
+                "dxf",
+                "svg",
+                "pdf",
+                "png",
+                "echo",
+                "ast",
+                "term",
+                "nef3",
+                "nefdbg",
+                "param",
+                "pov",
+            },
+        ),
+    ],
+    ids=["2021.01", "2026.09"],
+)
+def test_parse_export_formats_from_real_help_layouts(help_text, expected):
+    assert engine.parse_export_formats(help_text) == frozenset(expected)
+
+
+def test_parse_export_formats_is_none_when_help_has_no_list():
+    assert engine.parse_export_formats("Usage: openscad [options] file.scad\n") is None
+
+
+def test_detect_engine_tolerates_unreadable_help(fake_openscad, monkeypatch):
+    monkeypatch.setenv("FAKE_OPENSCAD_FORMATS", "none")
+    assert detect_engine(fake_openscad).export_formats is None

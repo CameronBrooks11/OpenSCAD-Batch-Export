@@ -7,7 +7,7 @@ This repository provides a tool to automate the export of STL models from OpenSC
 
 ## Features
 
-- Batch export STL files with parameters defined in CSV or JSON files.
+- Batch export STL, 3MF, OFF, PNG and any other format OpenSCAD can write, with parameters defined in CSV or JSON files.
 - Convert between CSV and JSON parameter files.
 - Easy-to-use command-line interface and GUI.
 - Handles boolean, numeric, and string parameter types correctly.
@@ -103,7 +103,7 @@ Export STL files using either a CSV or JSON parameter file.
 **Command Structure:**
 
 ```
-openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad-path PATH] [--export_format asciistl|binstl] [--select SELECTION]
+openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad-path PATH] [--format EXT ...] [--export-format asciistl|binstl] [--select SELECTION]
 ```
 
 **Parameters:**
@@ -115,7 +115,9 @@ openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad-
 **Options:**
 
 - `--openscad-path`: Path to the OpenSCAD executable. If omitted, `$OPENSCAD` is used, then `openscad` on PATH, then the platform's default install location (`C:\Program Files\OpenSCAD` on Windows, `/Applications/OpenSCAD.app` on macOS).
-- `--export_format`: Export format, either `asciistl` or `binstl`. Defaults to `binstl`.
+- `--format EXT`: Output format by file extension, as OpenSCAD's `-o` accepts it (`stl`, `off`, `3mf`, `png`, `csg`, ... — a format the detected OpenSCAD does not advertise in its `--help` is warned about; one it really cannot write fails per case with OpenSCAD's own message). Repeat the flag to export every case in several formats. Defaults to `stl`.
+- `--export-format`: STL flavour, `asciistl` or `binstl`. Defaults to `binstl`. Only applies to `stl`.
+- `--camera`, `--imgsize`, `--colorscheme`: passed straight to OpenSCAD for `png` output, e.g. `--format png --imgsize 1024,768 --camera 0,0,0,55,0,25,140`. OpenSCAD 2021.01 needs a display to render PNG (`xvfb-run openscad-export ...` on a headless Linux box); current builds render offscreen.
 - `--select SELECTION`: Select specific parameter sets to export using indices and ranges. Format examples: `'0-5'`, `'1-3,7,10-12'`, `'2,4'`. Indices are zero-based.
 
 **Examples:**

@@ -186,3 +186,51 @@ def test_json_via_p_and_csv_via_d_produce_identical_geometry(tmp_path):
 
     for name in CUBES:
         assert (via_sets / f"{name}.stl").read_bytes() == (via_flags / f"{name}.stl").read_bytes()
+
+
+def test_other_output_formats_through_real_openscad(tmp_path):
+    result = run_cli(
+        "export",
+        SIMPLE_CUBE / "simpleCube.scad",
+        SIMPLE_CUBE / "simpleCube.csv",
+        tmp_path,
+        "--select",
+        "0",
+        "--format",
+        "off",
+        "--format",
+        "3mf",
+        "--format",
+        "png",
+        "--imgsize",
+        "64,48",
+    )
+
+    assert result.returncode == 0, result.stdout
+    assert (tmp_path / "cube_small.off").read_text().startswith("OFF")
+    assert (tmp_path / "cube_small.3mf").read_bytes().startswith(b"PK")  # 3MF is a zip container
+    png = (tmp_path / "cube_small.png").read_bytes()
+    assert png.startswith(b"\x89PNG")
+    assert struct.unpack(">II", png[16:24]) == (64, 48)  # IHDR width, height
+    assert not (tmp_path / "cube_small.stl").exists()
+
+
+def test_unwritable_format_fails_per_case_with_openscads_own_message(tmp_path):
+    result = run_cli(
+        "export",
+        SIMPLE_CUBE / "simpleCube.scad",
+        SIMPLE_CUBE / "simpleCube.csv",
+        tmp_path / "out",
+        "--select",
+        "0",
+        "--format",
+        "xyz",
+        "--format",
+        "off",
+    )
+
+    assert result.returncode == 1
+    assert "xyz not listed by OpenSCAD" in result.stdout
+    assert "Failed exports: 1" in result.stdout and "Successful exports: 1" in result.stdout
+    assert (tmp_path / "out" / "cube_small.off").exists()
+    assert not (tmp_path / "out" / "cube_small.xyz").exists()

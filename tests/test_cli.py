@@ -81,3 +81,70 @@ def test_hyphenated_openscad_path_flag(fake_openscad, params_csv, tmp_path):
 
     assert code == 1  # one deliberately failing case in params_csv; the flag itself parsed
     assert (tmp_path / "o" / "ok.stl").exists()
+
+
+def test_format_flag_repeats_and_defaults_to_stl(fake_openscad, params_csv, tmp_path):
+    main(
+        export_args(
+            params_csv,
+            tmp_path,
+            fake_openscad,
+            "--select",
+            "0",
+            "--format",
+            "png",
+            "--format",
+            "off",
+        )
+    )
+    main(
+        [
+            "export",
+            "m.scad",
+            params_csv,
+            str(tmp_path / "default"),
+            "--openscad-path",
+            fake_openscad,
+            "--select",
+            "0",
+        ]
+    )
+
+    assert sorted(p.name for p in (tmp_path / "out").iterdir()) == ["ok.off", "ok.png"]
+    assert [p.name for p in (tmp_path / "default").iterdir()] == ["ok.stl"]
+
+
+def test_unlisted_format_warns_and_fails_per_case(fake_openscad, params_csv, tmp_path, capsys):
+    code = main(
+        export_args(params_csv, tmp_path, fake_openscad, "--select", "0", "--format", "xyz")
+    )
+
+    out = capsys.readouterr().out
+    assert code == 1
+    assert "xyz not listed by OpenSCAD 2021.01" in out
+    assert "Failed exports: 1" in out
+
+
+def test_image_flags_reach_openscad(fake_openscad, params_csv, tmp_path):
+    main(
+        export_args(
+            params_csv,
+            tmp_path,
+            fake_openscad,
+            "--select",
+            "0",
+            "--format",
+            "png",
+            "--imgsize",
+            "320,240",
+            "--camera",
+            "0,0,0,55,0,25,140",
+            "--colorscheme",
+            "Tomorrow",
+        )
+    )
+
+    lines = (tmp_path / "out" / "ok.png").read_text().splitlines()
+    assert "--imgsize=320,240" in lines
+    assert "--camera=0,0,0,55,0,25,140" in lines
+    assert "--colorscheme=Tomorrow" in lines

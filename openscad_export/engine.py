@@ -25,6 +25,8 @@ PLATFORM_DEFAULTS = {
 }
 
 _VERSION_RE = re.compile(r"OpenSCAD version (\S+)")
+# The -o paragraph of --help: "the file extension specifies the type: stl, off, ..."
+_FORMATS_RE = re.compile(r"the type:\s*([a-z0-9]+(?:\s*,\s*[a-z0-9]+)*)", re.IGNORECASE)
 
 
 class OpenSCADError(Exception):
@@ -42,6 +44,8 @@ class Engine:
     path: str
     version: str
     version_tuple: tuple[int, ...]
+    export_formats: frozenset[str] | None = None
+    """Output extensions this build accepts for ``-o``, or None if --help was unreadable."""
 
     @property
     def supports_parameter_sets(self) -> bool:
@@ -111,6 +115,17 @@ def parse_version(text: str) -> tuple[str, tuple[int, ...]]:
     return version, tuple(numbers)
 
 
+def parse_export_formats(help_text: str) -> frozenset[str] | None:
+    """
+    Extract the ``-o`` output extensions from ``openscad --help`` output, or None if
+    the list is not where this build's help puts it.
+    """
+    match = _FORMATS_RE.search(" ".join(help_text.split()))
+    if not match:
+        return None
+    return frozenset(token.strip().lower() for token in match.group(1).split(","))
+
+
 def detect_engine(explicit: str | None = None) -> Engine:
     """
     Find OpenSCAD and ask it for its version.
@@ -125,6 +140,7 @@ def detect_engine(explicit: str | None = None) -> Engine:
             [path, "--version"],
             capture_output=True,
             text=True,
+            errors="replace",
             stdin=subprocess.DEVNULL,
             timeout=60,
         )
@@ -137,4 +153,19 @@ def detect_engine(explicit: str | None = None) -> Engine:
     # OpenSCAD prints its version on stderr; look at both streams.
     version, version_tuple = parse_version(completed.stdout + completed.stderr)
     log.info("Using OpenSCAD version %s at %s", version, path)
-    return Engine(path, version, version_tuple)
+    export_formats = None
+    try:
+        help_run = subprocess.run(
+            [path, "--help"],
+            capture_output=True,
+            text=True,
+            errors="replace",
+            stdin=subprocess.DEVNULL,
+            timeout=60,
+        )
+        export_formats = parse_export_formats(help_run.stdout + help_run.stderr)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    if export_formats is None:
+        log.debug("Could not read the supported output formats from --help; not validating.")
+    return Engine(path, version, version_tuple, export_formats)

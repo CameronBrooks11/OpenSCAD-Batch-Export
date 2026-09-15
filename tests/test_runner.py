@@ -367,7 +367,8 @@ def test_jobs_bounds_how_many_openscad_processes_run_at_once(
 ):
     log_path = tmp_path / "probe.log"
     monkeypatch.setenv("FAKE_OPENSCAD_LOG", str(log_path))
-    monkeypatch.setenv("FAKE_OPENSCAD_SLEEP", "0.25")
+    # Long enough that process start-up jitter (slow on Windows runners) cannot hide the overlap.
+    monkeypatch.setenv("FAKE_OPENSCAD_SLEEP", "1.0")
 
     result = batch_export(
         SCAD, four_cases, str(tmp_path / "o"), fake_openscad, "binstl", None, False, jobs=jobs

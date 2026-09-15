@@ -343,6 +343,8 @@ def max_concurrent(log_path):
     """Peak number of fake OpenSCAD processes alive at once, from its start/end log."""
     events = []
     for line in log_path.read_text().splitlines():
+        if not line.strip():
+            continue  # concurrent appends on Windows can leave a blank line
         kind, stamp, _pid = line.split()
         events.append((float(stamp), 1 if kind == "start" else -1))
     peak = alive = 0

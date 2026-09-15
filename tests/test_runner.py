@@ -339,12 +339,18 @@ def test_unknown_image_option_is_rejected(fake_openscad, params_csv, tmp_path):
         )
 
 
+def probe_lines(log_path):
+    """All lines from the fake engine's per-process probe logs (log_path.<pid>)."""
+    lines = []
+    for part in sorted(log_path.parent.glob(log_path.name + ".*")):
+        lines += part.read_text().splitlines()
+    return lines
+
+
 def max_concurrent(log_path):
-    """Peak number of fake OpenSCAD processes alive at once, from its start/end log."""
+    """Peak number of fake OpenSCAD processes alive at once, from its start/end logs."""
     events = []
-    for line in log_path.read_text().splitlines():
-        if not line.strip():
-            continue  # concurrent appends on Windows can leave a blank line
+    for line in probe_lines(log_path):
         kind, stamp, _pid = line.split()
         if kind == "term":
             continue
@@ -431,7 +437,7 @@ def test_interrupt_terminates_running_openscad_and_skips_the_rest(
 
     assert time.monotonic() - started < 5, "children were not terminated promptly"
     time.sleep(0.5)  # let the SIGTERM handlers in the children write their line
-    lines = log_path.read_text().splitlines()
+    lines = probe_lines(log_path)
     assert sum(line.startswith("start") for line in lines) == jobs  # only the running ones began
     assert (
         sum(line.startswith("term") for line in lines) == jobs

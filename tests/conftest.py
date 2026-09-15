@@ -34,11 +34,14 @@ FAKE_OPENSCAD = textwrap.dedent(
         sys.exit(0)
     out = args[args.index("-o") + 1]
     ext = out.rsplit(".", 1)[-1]
-    # Concurrency probes: append start/end timestamps to FAKE_OPENSCAD_LOG and hold for
+    # Concurrency probes: write start/end timestamps to FAKE_OPENSCAD_LOG.<pid> (one file
+    # per process; concurrent appends to one file lose lines on Windows) and hold for
     # FAKE_OPENSCAD_SLEEP seconds.
     import time
 
     log_path = os.environ.get("FAKE_OPENSCAD_LOG")
+    if log_path:
+        log_path = f"{log_path}.{os.getpid()}"
     if log_path:
         with open(log_path, "a") as f:
             f.write(f"start {time.monotonic():.4f} {os.getpid()}\\n")

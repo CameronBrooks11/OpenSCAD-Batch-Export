@@ -1,3 +1,5 @@
+import os
+
 import pytest
 
 from openscad_export.cli import main
@@ -148,3 +150,39 @@ def test_image_flags_reach_openscad(fake_openscad, params_csv, tmp_path):
     assert "--imgsize=320,240" in lines
     assert "--camera=0,0,0,55,0,25,140" in lines
     assert "--colorscheme=Tomorrow" in lines
+
+
+def test_jobs_flag_is_passed_through(fake_openscad, params_csv, tmp_path, capsys):
+    main(export_args(params_csv, tmp_path, fake_openscad, "-j", "2"))
+
+    assert "Running exports with up to 2 parallel jobs." in capsys.readouterr().out
+
+
+def test_sequential_is_a_deprecated_alias_for_one_job(fake_openscad, params_csv, tmp_path, capsys):
+    main(export_args(params_csv, tmp_path, fake_openscad, "--sequential"))
+
+    captured = capsys.readouterr()
+    assert "Running exports sequentially." in captured.out
+    assert "--sequential is deprecated; use --jobs 1" in captured.err
+
+
+def test_zero_jobs_is_a_clean_error(fake_openscad, params_csv, tmp_path, capsys):
+    code = main(export_args(params_csv, tmp_path, fake_openscad, "--jobs", "0"))
+
+    assert code == 1
+    assert "--jobs must be at least 1" in capsys.readouterr().err
+    assert not (tmp_path / "out").exists()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="SIGINT delivery to self is POSIX-specific")
+def test_interrupt_exits_130(fake_openscad, params_csv, tmp_path, monkeypatch, capsys):
+    import signal
+    import threading
+
+    monkeypatch.setenv("FAKE_OPENSCAD_SLEEP", "10")
+    threading.Timer(0.5, os.kill, args=(os.getpid(), signal.SIGINT)).start()
+
+    code = main(export_args(params_csv, tmp_path, fake_openscad, "-j", "2"))
+
+    assert code == 130
+    assert "Interrupted." in capsys.readouterr().err

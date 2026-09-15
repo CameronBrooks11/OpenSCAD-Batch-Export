@@ -6,6 +6,7 @@ import concurrent.futures
 import logging
 import os
 import subprocess
+import threading
 import time
 from dataclasses import dataclass
 
@@ -18,6 +19,48 @@ from openscad_export.params import (
 )
 
 log = logging.getLogger("openscad_export")
+
+
+class _ActiveProcesses:
+    """OpenSCAD processes currently running, so an interrupt can terminate them.
+
+    After terminate_all() the registry is closed: a process registered later (a worker
+    that was between picking up its task and spawning when the interrupt arrived) is
+    terminated on arrival, so nothing slips through the gap. reset() reopens it.
+    """
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._procs = set()
+        self.closed = False
+
+    def reset(self):
+        with self._lock:
+            self._procs.clear()
+            self.closed = False
+
+    def add(self, proc):
+        with self._lock:
+            self._procs.add(proc)
+            late = self.closed
+        if late:
+            proc.terminate()
+
+    def discard(self, proc):
+        with self._lock:
+            self._procs.discard(proc)
+
+    def terminate_all(self):
+        with self._lock:
+            self.closed = True
+            procs = list(self._procs)
+        for proc in procs:
+            if proc.poll() is None:
+                proc.terminate()
+        return len(procs)
+
+
+_active = _ActiveProcesses()
 
 
 @dataclass
@@ -105,15 +148,29 @@ def export_stl(openscad_path, scad_file, output_file, export_format, param_args,
     command.append(scad_file)
     log.debug("Running command: %s", " ".join(command))
     start_time = time.perf_counter()
-    completed = subprocess.run(command, capture_output=True)
+    proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    _active.add(proc)
+    try:
+        _, stderr_bytes = proc.communicate()
+    except KeyboardInterrupt:
+        # Sequential mode: the interrupt lands here, in the main thread, while the
+        # child is still running. (Worker threads never receive KeyboardInterrupt; the
+        # parallel runner terminates their children instead.)
+        proc.terminate()
+        proc.wait(timeout=10)
+        log.warning("Interrupted: terminated the running OpenSCAD process.")
+        raise
+    finally:
+        _active.discard(proc)
     duration = time.perf_counter() - start_time
-    stderr = completed.stderr.decode(errors="replace").strip()
+    stderr = stderr_bytes.decode(errors="replace").strip()
+    returncode = proc.returncode
     return ExportResult(
         name=name,
         output_path=output_file,
-        ok=completed.returncode == 0,
-        returncode=completed.returncode,
-        stderr=stderr if completed.returncode != 0 else "",
+        ok=returncode == 0,
+        returncode=returncode,
+        stderr=stderr if returncode != 0 else "",
         duration=duration,
         format=ext.lstrip(".").lower(),
     )
@@ -132,6 +189,7 @@ def batch_export(
     sequential,
     formats=("stl",),
     image_options=None,
+    jobs=None,
 ):
     """
     Perform batch export of files based on parameter sets.
@@ -144,7 +202,9 @@ def batch_export(
             discover it (see :func:`openscad_export.engine.find_openscad`).
         export_format (str): Export format ('asciistl' or 'binstl').
         selection (str or None): Selection string to specify which parameter sets to export.
-        sequential (bool): Whether to process exports sequentially.
+        sequential (bool): Run one export at a time; the same as ``jobs=1``.
+        jobs (int or None): Maximum number of OpenSCAD processes to run at once.
+            Defaults to the CPU count. ``sequential`` forces 1.
         formats (sequence of str): Output extensions, e.g. ``("stl", "png")``; every case
             is exported in every format (duplicates collapsed). A format the engine's
             ``--help`` does not list for ``-o`` is warned about, not refused.
@@ -159,11 +219,22 @@ def batch_export(
     Returns:
         BatchResult: Per-case results in input order.
 
+    Ctrl-C (KeyboardInterrupt) terminates the OpenSCAD processes still running,
+    abandons the cases not yet started, and re-raises. The process registry this uses
+    is per process, so an interrupt also stops any other batch running concurrently
+    in the same Python process.
+
     Raises:
         OpenSCADError: If no usable OpenSCAD executable is found.
-        ValueError: If the parameter file format, the selection string, or an image
-            option is invalid.
+        ValueError: If the parameter file format, the selection string, an image
+            option, or ``jobs`` is invalid.
     """
+    if sequential:
+        jobs = 1
+    elif jobs is None:
+        jobs = os.cpu_count() or 1
+    if not isinstance(jobs, int) or isinstance(jobs, bool) or jobs < 1:
+        raise ValueError(f"jobs must be a positive integer, not {jobs!r}")
     engine = detect_engine(openscad_path)
     formats = list(dict.fromkeys(f.lstrip(".").lower() for f in formats))
     if not formats:
@@ -196,11 +267,11 @@ def batch_export(
     else:
         log.info("Passing parameters as -D flags.")
 
-    jobs = list(enumerate(parameters))
+    cases = list(enumerate(parameters))
     if selection:
         selected = set(parse_selection(selection, len(parameters)))
         log.info("Selected parameter set indices: %s", sorted(selected))
-        jobs = [(idx, params) for idx, params in jobs if idx in selected]
+        cases = [(idx, params) for idx, params in cases if idx in selected]
 
     def process_export(idx, param_set, fmt):
         filename = param_set.get("exported_filename", f"model_{idx}")
@@ -223,6 +294,8 @@ def batch_export(
             )
         if result.ok:
             log.info("Exported: %s in %.2f seconds.", result.output_path, result.duration)
+        elif _active.closed:
+            log.debug("Terminated: %s", result.output_path)
         else:
             log.error(
                 "Error exporting %s: %s (Time: %.2f seconds)",
@@ -232,17 +305,37 @@ def batch_export(
             )
         return (idx, formats.index(fmt)), result
 
-    tasks = [(idx, params, fmt) for idx, params in jobs for fmt in formats]
+    tasks = [(idx, params, fmt) for idx, params in cases for fmt in formats]
     total_start_time = time.perf_counter()
-    if sequential:
+    _active.reset()
+    if jobs == 1:
         log.info("Running exports sequentially.")
-        indexed = [process_export(*task) for task in tasks]
+        indexed = [process_export(*task) for task in tasks]  # export_stl handles Ctrl-C
     else:
-        log.info("Running exports in parallel.")
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            futures = [executor.submit(process_export, *task) for task in tasks]
-            indexed = [f.result() for f in concurrent.futures.as_completed(futures)]
+        log.info("Running exports with up to %d parallel jobs.", jobs)
+        indexed = _run_parallel(process_export, tasks, jobs)
     total_duration = time.perf_counter() - total_start_time
 
     indexed.sort(key=lambda pair: pair[0])
     return BatchResult([result for _, result in indexed], total_duration)
+
+
+def _on_interrupt():
+    killed = _active.terminate_all()
+    log.warning("Interrupted: terminated %d running OpenSCAD process(es).", killed)
+
+
+def _run_parallel(func, tasks, jobs):
+    """Run func(*task) for every task with at most `jobs` at once. On interrupt,
+    terminate running OpenSCAD processes, drop unstarted tasks, and re-raise."""
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=jobs)
+    futures = [executor.submit(func, *task) for task in tasks]
+    try:
+        return [f.result() for f in concurrent.futures.as_completed(futures)]
+    except KeyboardInterrupt:
+        for f in futures:
+            f.cancel()
+        _on_interrupt()
+        raise
+    finally:
+        executor.shutdown(wait=True, cancel_futures=True)

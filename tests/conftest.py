@@ -34,6 +34,30 @@ FAKE_OPENSCAD = textwrap.dedent(
         sys.exit(0)
     out = args[args.index("-o") + 1]
     ext = out.rsplit(".", 1)[-1]
+    # Concurrency probes: write start/end timestamps to FAKE_OPENSCAD_LOG.<pid> (one file
+    # per process; concurrent appends to one file lose lines on Windows) and hold for
+    # FAKE_OPENSCAD_SLEEP seconds.
+    import time
+
+    log_path = os.environ.get("FAKE_OPENSCAD_LOG")
+    if log_path:
+        log_path = f"{log_path}.{os.getpid()}"
+    if log_path:
+        with open(log_path, "a") as f:
+            f.write(f"start {time.monotonic():.4f} {os.getpid()}\\n")
+        if os.name != "nt":
+            import signal
+
+            def on_term(signum, frame):
+                with open(log_path, "a") as f:
+                    f.write(f"term {time.monotonic():.4f} {os.getpid()}\\n")
+                sys.exit(143)
+
+            signal.signal(signal.SIGTERM, on_term)
+    time.sleep(float(os.environ.get("FAKE_OPENSCAD_SLEEP", "0")))
+    if log_path:
+        with open(log_path, "a") as f:
+            f.write(f"end {time.monotonic():.4f} {os.getpid()}\\n")
     if formats and ext not in [f.strip() for f in formats.split(",")]:
         sys.stderr.write(f"Unknown suffix for output file {out}\\n")
         sys.exit(1)

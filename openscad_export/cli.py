@@ -98,9 +98,16 @@ def parse_arguments(argv=None):
         ),
     )
     export_parser.add_argument(
+        "-j",
+        "--jobs",
+        type=int,
+        metavar="N",
+        help="Run up to N OpenSCAD processes at once. Defaults to the number of CPUs.",
+    )
+    export_parser.add_argument(
         "--sequential",
         action="store_true",
-        help="Disable parallel processing and export sequentially.",
+        help="Deprecated: same as --jobs 1.",
     )
 
     # csv2json subcommand
@@ -140,6 +147,11 @@ def main(argv=None):
 
 def _run(args):
     if args.command == "export":
+        if args.sequential:
+            print("Warning: --sequential is deprecated; use --jobs 1.", file=sys.stderr)
+        if args.jobs is not None and args.jobs < 1:
+            print("Error: --jobs must be at least 1.", file=sys.stderr)
+            return 1
         try:
             result = batch_export(
                 args.scad_file,
@@ -151,10 +163,14 @@ def _run(args):
                 args.sequential,
                 formats=args.format or ["stl"],
                 image_options={k: getattr(args, k) for k in ("camera", "imgsize", "colorscheme")},
+                jobs=args.jobs,
             )
         except (OpenSCADError, ValueError) as e:
             print(f"Error: {e}", file=sys.stderr)
             return 1
+        except KeyboardInterrupt:
+            print("Interrupted.", file=sys.stderr)
+            return 130
         print()
         print(result.summary())
         return 1 if result.failures else 0

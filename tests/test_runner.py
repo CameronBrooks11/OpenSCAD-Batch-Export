@@ -337,3 +337,96 @@ def test_unknown_image_option_is_rejected(fake_openscad, params_csv, tmp_path):
             True,
             image_options={"projection": "ortho"},
         )
+
+
+def max_concurrent(log_path):
+    """Peak number of fake OpenSCAD processes alive at once, from its start/end log."""
+    events = []
+    for line in log_path.read_text().splitlines():
+        kind, stamp, _pid = line.split()
+        events.append((float(stamp), 1 if kind == "start" else -1))
+    peak = alive = 0
+    for _, delta in sorted(events):
+        alive += delta
+        peak = max(peak, alive)
+    return peak
+
+
+@pytest.fixture
+def four_cases(tmp_path):
+    p = tmp_path / "four.csv"
+    p.write_text("exported_filename,size\na,1\nb,2\nc,3\nd,4\n")
+    return str(p)
+
+
+@pytest.mark.parametrize("jobs", [1, 2])
+def test_jobs_bounds_how_many_openscad_processes_run_at_once(
+    fake_openscad, four_cases, tmp_path, monkeypatch, jobs
+):
+    log_path = tmp_path / "probe.log"
+    monkeypatch.setenv("FAKE_OPENSCAD_LOG", str(log_path))
+    monkeypatch.setenv("FAKE_OPENSCAD_SLEEP", "0.25")
+
+    result = batch_export(
+        SCAD, four_cases, str(tmp_path / "o"), fake_openscad, "binstl", None, False, jobs=jobs
+    )
+
+    assert [r.name for r in result.results] == ["a", "b", "c", "d"]
+    assert max_concurrent(log_path) == jobs
+
+
+def test_jobs_defaults_to_cpu_count(fake_openscad, params_csv, tmp_path, caplog):
+    with caplog.at_level(logging.INFO, logger="openscad_export"):
+        batch_export(SCAD, params_csv, str(tmp_path / "o"), fake_openscad, "binstl", None, False)
+
+    expected = os.cpu_count() or 1
+    if expected == 1:
+        assert "Running exports sequentially." in caplog.text
+    else:
+        assert f"Running exports with up to {expected} parallel jobs." in caplog.text
+
+
+def test_sequential_forces_one_job(fake_openscad, params_csv, tmp_path, caplog):
+    with caplog.at_level(logging.INFO, logger="openscad_export"):
+        batch_export(
+            SCAD, params_csv, str(tmp_path / "o"), fake_openscad, "binstl", None, True, jobs=8
+        )
+
+    assert "Running exports sequentially." in caplog.text
+
+
+@pytest.mark.parametrize("jobs", [0, -1, "2", 2.0, True])
+def test_invalid_jobs_is_rejected_before_anything_runs(fake_openscad, params_csv, tmp_path, jobs):
+    with pytest.raises(ValueError, match="jobs must be a positive integer"):
+        batch_export(
+            SCAD, params_csv, str(tmp_path / "o"), fake_openscad, "binstl", None, False, jobs=jobs
+        )
+    assert not (tmp_path / "o").exists()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="SIGINT delivery to self is POSIX-specific")
+def test_interrupt_terminates_running_openscad_and_skips_the_rest(
+    fake_openscad, four_cases, tmp_path, monkeypatch
+):
+    import signal
+    import threading
+    import time
+
+    log_path = tmp_path / "probe.log"
+    monkeypatch.setenv("FAKE_OPENSCAD_LOG", str(log_path))
+    monkeypatch.setenv("FAKE_OPENSCAD_SLEEP", "10")
+    threading.Timer(0.5, os.kill, args=(os.getpid(), signal.SIGINT)).start()
+    started = time.monotonic()
+
+    with pytest.raises(KeyboardInterrupt):
+        batch_export(
+            SCAD, four_cases, str(tmp_path / "o"), fake_openscad, "binstl", None, False, jobs=2
+        )
+
+    assert time.monotonic() - started < 5, "children were not terminated promptly"
+    lines = log_path.read_text().splitlines()
+    assert (
+        sum(line.startswith("start") for line in lines) == 2
+    )  # only the two running; c, d never began
+    assert not any(line.startswith("end") for line in lines)  # neither finished its 10 s sleep
+    assert list((tmp_path / "o").iterdir()) == []

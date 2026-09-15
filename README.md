@@ -103,7 +103,7 @@ Export STL files using either a CSV or JSON parameter file.
 **Command Structure:**
 
 ```
-openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad-path PATH] [--format EXT ...] [--export-format asciistl|binstl] [--select SELECTION]
+openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad-path PATH] [--format EXT ...] [--export-format asciistl|binstl] [--select SELECTION] [-j N]
 ```
 
 **Parameters:**
@@ -118,6 +118,7 @@ openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad-
 - `--format EXT`: Output format by file extension, as OpenSCAD's `-o` accepts it (`stl`, `off`, `3mf`, `png`, `csg`, ... — a format the detected OpenSCAD does not advertise in its `--help` is warned about; one it really cannot write fails per case with OpenSCAD's own message). Repeat the flag to export every case in several formats. Defaults to `stl`.
 - `--export-format`: STL flavour, `asciistl` or `binstl`. Defaults to `binstl`. Only applies to `stl`.
 - `--camera`, `--imgsize`, `--colorscheme`: passed straight to OpenSCAD for `png` output, e.g. `--format png --imgsize 1024,768 --camera 0,0,0,55,0,25,140`. OpenSCAD 2021.01 needs a display to render PNG (`xvfb-run openscad-export ...` on a headless Linux box); current builds render offscreen.
+- `-j N`, `--jobs N`: run up to N OpenSCAD processes at once. Defaults to the number of CPUs. Ctrl-C stops the running renders and abandons the rest. (`--sequential` is a deprecated alias for `--jobs 1`.)
 - `--select SELECTION`: Select specific parameter sets to export using indices and ranges. Format examples: `'0-5'`, `'1-3,7,10-12'`, `'2,4'`. Indices are zero-based.
 
 **Examples:**

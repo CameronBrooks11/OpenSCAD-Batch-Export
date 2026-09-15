@@ -346,6 +346,8 @@ def max_concurrent(log_path):
         if not line.strip():
             continue  # concurrent appends on Windows can leave a blank line
         kind, stamp, _pid = line.split()
+        if kind == "term":
+            continue
         events.append((float(stamp), 1 if kind == "start" else -1))
     peak = alive = 0
     for _, delta in sorted(events):
@@ -408,8 +410,9 @@ def test_invalid_jobs_is_rejected_before_anything_runs(fake_openscad, params_csv
 
 
 @pytest.mark.skipif(os.name == "nt", reason="SIGINT delivery to self is POSIX-specific")
+@pytest.mark.parametrize("jobs", [1, 2])
 def test_interrupt_terminates_running_openscad_and_skips_the_rest(
-    fake_openscad, four_cases, tmp_path, monkeypatch
+    fake_openscad, four_cases, tmp_path, monkeypatch, jobs
 ):
     import signal
     import threading
@@ -423,13 +426,36 @@ def test_interrupt_terminates_running_openscad_and_skips_the_rest(
 
     with pytest.raises(KeyboardInterrupt):
         batch_export(
-            SCAD, four_cases, str(tmp_path / "o"), fake_openscad, "binstl", None, False, jobs=2
+            SCAD, four_cases, str(tmp_path / "o"), fake_openscad, "binstl", None, False, jobs=jobs
         )
 
     assert time.monotonic() - started < 5, "children were not terminated promptly"
+    time.sleep(0.5)  # let the SIGTERM handlers in the children write their line
     lines = log_path.read_text().splitlines()
+    assert sum(line.startswith("start") for line in lines) == jobs  # only the running ones began
     assert (
-        sum(line.startswith("start") for line in lines) == 2
-    )  # only the two running; c, d never began
-    assert not any(line.startswith("end") for line in lines)  # neither finished its 10 s sleep
+        sum(line.startswith("term") for line in lines) == jobs
+    )  # and every one of them was killed
+    assert not any(line.startswith("end") for line in lines)  # none finished its 10 s sleep
     assert list((tmp_path / "o").iterdir()) == []
+
+
+def test_process_registered_after_an_interrupt_is_terminated_on_arrival():
+    """A worker that was between picking up its task and spawning OpenSCAD when the
+    interrupt fired must not be left running to completion."""
+    import subprocess
+    import sys
+
+    from openscad_export import runner
+
+    registry = runner._ActiveProcesses()
+    registry.terminate_all()
+    late = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        registry.add(late)
+        assert late.wait(timeout=5) != 0
+    finally:
+        if late.poll() is None:
+            late.kill()
+    registry.reset()
+    assert registry.closed is False

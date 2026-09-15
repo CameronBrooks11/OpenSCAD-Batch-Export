@@ -22,15 +22,29 @@ log = logging.getLogger("openscad_export")
 
 
 class _ActiveProcesses:
-    """OpenSCAD processes currently running, so an interrupt can terminate them."""
+    """OpenSCAD processes currently running, so an interrupt can terminate them.
+
+    After terminate_all() the registry is closed: a process registered later (a worker
+    that was between picking up its task and spawning when the interrupt arrived) is
+    terminated on arrival, so nothing slips through the gap. reset() reopens it.
+    """
 
     def __init__(self):
         self._lock = threading.Lock()
         self._procs = set()
+        self.closed = False
+
+    def reset(self):
+        with self._lock:
+            self._procs.clear()
+            self.closed = False
 
     def add(self, proc):
         with self._lock:
             self._procs.add(proc)
+            late = self.closed
+        if late:
+            proc.terminate()
 
     def discard(self, proc):
         with self._lock:
@@ -38,6 +52,7 @@ class _ActiveProcesses:
 
     def terminate_all(self):
         with self._lock:
+            self.closed = True
             procs = list(self._procs)
         for proc in procs:
             if proc.poll() is None:
@@ -137,6 +152,14 @@ def export_stl(openscad_path, scad_file, output_file, export_format, param_args,
     _active.add(proc)
     try:
         _, stderr_bytes = proc.communicate()
+    except KeyboardInterrupt:
+        # Sequential mode: the interrupt lands here, in the main thread, while the
+        # child is still running. (Worker threads never receive KeyboardInterrupt; the
+        # parallel runner terminates their children instead.)
+        proc.terminate()
+        proc.wait(timeout=10)
+        log.warning("Interrupted: terminated the running OpenSCAD process.")
+        raise
     finally:
         _active.discard(proc)
     duration = time.perf_counter() - start_time
@@ -197,7 +220,9 @@ def batch_export(
         BatchResult: Per-case results in input order.
 
     Ctrl-C (KeyboardInterrupt) terminates the OpenSCAD processes still running,
-    abandons the cases not yet started, and re-raises.
+    abandons the cases not yet started, and re-raises. The process registry this uses
+    is per process, so an interrupt also stops any other batch running concurrently
+    in the same Python process.
 
     Raises:
         OpenSCADError: If no usable OpenSCAD executable is found.
@@ -269,6 +294,8 @@ def batch_export(
             )
         if result.ok:
             log.info("Exported: %s in %.2f seconds.", result.output_path, result.duration)
+        elif _active.closed:
+            log.debug("Terminated: %s", result.output_path)
         else:
             log.error(
                 "Error exporting %s: %s (Time: %.2f seconds)",
@@ -280,9 +307,10 @@ def batch_export(
 
     tasks = [(idx, params, fmt) for idx, params in cases for fmt in formats]
     total_start_time = time.perf_counter()
+    _active.reset()
     if jobs == 1:
         log.info("Running exports sequentially.")
-        indexed = [process_export(*task) for task in tasks]
+        indexed = [process_export(*task) for task in tasks]  # export_stl handles Ctrl-C
     else:
         log.info("Running exports with up to %d parallel jobs.", jobs)
         indexed = _run_parallel(process_export, tasks, jobs)
@@ -290,6 +318,11 @@ def batch_export(
 
     indexed.sort(key=lambda pair: pair[0])
     return BatchResult([result for _, result in indexed], total_duration)
+
+
+def _on_interrupt():
+    killed = _active.terminate_all()
+    log.warning("Interrupted: terminated %d running OpenSCAD process(es).", killed)
 
 
 def _run_parallel(func, tasks, jobs):
@@ -302,8 +335,7 @@ def _run_parallel(func, tasks, jobs):
     except KeyboardInterrupt:
         for f in futures:
             f.cancel()
-        killed = _active.terminate_all()
-        log.warning("Interrupted: terminated %d running OpenSCAD process(es).", killed)
+        _on_interrupt()
         raise
     finally:
         executor.shutdown(wait=True, cancel_futures=True)

@@ -42,6 +42,15 @@ FAKE_OPENSCAD = textwrap.dedent(
     if log_path:
         with open(log_path, "a") as f:
             f.write(f"start {time.monotonic():.4f} {os.getpid()}\\n")
+        if os.name != "nt":
+            import signal
+
+            def on_term(signum, frame):
+                with open(log_path, "a") as f:
+                    f.write(f"term {time.monotonic():.4f} {os.getpid()}\\n")
+                sys.exit(143)
+
+            signal.signal(signal.SIGTERM, on_term)
     time.sleep(float(os.environ.get("FAKE_OPENSCAD_SLEEP", "0")))
     if log_path:
         with open(log_path, "a") as f:

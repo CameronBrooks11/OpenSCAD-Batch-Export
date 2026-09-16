@@ -126,6 +126,20 @@ def parse_arguments(argv=None):
         action="store_true",
         help="Print the OpenSCAD command for each case and run nothing.",
     )
+    export_parser.add_argument(
+        "--timeout",
+        type=float,
+        metavar="SECONDS",
+        help="Kill a case that runs longer than this and record it as timed out.",
+    )
+    export_parser.add_argument(
+        "--summary",
+        metavar="PATH.json",
+        help=(
+            "Write a JSON record of the run: OpenSCAD version, inputs, and per-case "
+            "status, duration, return code, warnings and command line."
+        ),
+    )
 
     # csv2json subcommand
     csv2json_parser = subparsers.add_parser("csv2json", help="Convert CSV parameter file to JSON.")
@@ -183,6 +197,7 @@ def _run(args):
                 jobs=args.jobs,
                 skip_existing=args.skip_existing,
                 dry_run=args.dry_run,
+                timeout=args.timeout,
             )
         except (OpenSCADError, ValueError) as e:
             print(f"Error: {e}", file=sys.stderr)
@@ -192,6 +207,9 @@ def _run(args):
             return 130
         print()
         print(result.summary())
+        if args.summary:
+            result.write_summary(args.summary)
+            print(f"Summary written to {args.summary}")
         return 1 if result.failures else 0
     if args.command == "csv2json":
         csv_to_json(args.csv_file, args.json_file)

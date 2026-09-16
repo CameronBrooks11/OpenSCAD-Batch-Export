@@ -253,7 +253,7 @@ def export_stl(
             _, stderr_bytes = proc.communicate(timeout=timeout)
         except subprocess.TimeoutExpired:
             timed_out = True
-            proc.kill()
+            _kill_tree(proc)
             _, stderr_bytes = proc.communicate()
     except KeyboardInterrupt:
         # Sequential mode: the interrupt lands here, in the main thread, while the
@@ -310,6 +310,17 @@ def format_command(command):
     if os.name == "nt":
         return subprocess.list2cmdline(command)
     return shlex.join(command)
+
+
+def _kill_tree(proc):
+    """Kill the process and, on Windows, its descendants: a .bat/.cmd wrapper around
+    OpenSCAD would otherwise die alone while the render kept the pipes open."""
+    if os.name == "nt":
+        subprocess.run(
+            ["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output=True, check=False
+        )
+    else:
+        proc.kill()
 
 
 def _remove_quietly(path):

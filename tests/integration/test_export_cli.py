@@ -299,11 +299,13 @@ def test_warnings_and_echo_are_captured_into_the_json_summary(tmp_path):
 def test_timeout_kills_a_slow_render_and_leaves_nothing_behind(tmp_path):
     scad = tmp_path / "slow.scad"
     scad.write_text(
-        "n = 1;\nfor (i = [0:n]) for (j = [0:n]) translate([i * 5, j * 5, 0])\n"
+        "n = 1;\n"
+        "if (n < 0) cube(1);  // the cheap case, for any engine\n"
+        "else for (i = [0:n]) for (j = [0:n]) translate([i * 5, j * 5, 0])\n"
         "    difference() { sphere(2, $fn = 96); sphere(1.5, $fn = 96); }\n"
     )
     params = tmp_path / "params.csv"
-    params.write_text("exported_filename,n\nbig,12\nsmall,0\n")
+    params.write_text("exported_filename,n\nbig,12\nsmall,-1\n")
     out = tmp_path / "out"
 
     result = run_cli("export", scad, params, out, "--timeout", "1", "-j", "1")

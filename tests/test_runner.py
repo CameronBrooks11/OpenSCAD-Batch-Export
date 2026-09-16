@@ -427,6 +427,7 @@ def test_interrupt_terminates_running_openscad_and_skips_the_rest(
     log_path = tmp_path / "probe.log"
     monkeypatch.setenv("FAKE_OPENSCAD_LOG", str(log_path))
     monkeypatch.setenv("FAKE_OPENSCAD_SLEEP", "10")
+    monkeypatch.setenv("FAKE_OPENSCAD_PARTIAL", "1")  # a partial output must not survive
     threading.Timer(0.5, os.kill, args=(os.getpid(), signal.SIGINT)).start()
     started = time.monotonic()
 
@@ -443,7 +444,7 @@ def test_interrupt_terminates_running_openscad_and_skips_the_rest(
         sum(line.startswith("term") for line in lines) == jobs
     )  # and every one of them was killed
     assert not any(line.startswith("end") for line in lines)  # none finished its 10 s sleep
-    assert list((tmp_path / "o").iterdir()) == []
+    assert list((tmp_path / "o").iterdir()) == []  # no outputs, no .part leftovers
 
 
 def test_process_registered_after_an_interrupt_is_terminated_on_arrival():

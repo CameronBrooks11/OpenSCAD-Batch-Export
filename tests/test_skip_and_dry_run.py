@@ -5,6 +5,7 @@ import pytest
 
 from openscad_export import batch_export
 from openscad_export.cli import main
+from openscad_export.runner import format_command
 
 SCAD = "model.scad"
 
@@ -107,9 +108,75 @@ def test_dry_run_runs_nothing_and_creates_nothing(
         "-Dsize=5",
         SCAD,
     ]
-    assert f"Would run: {' '.join(first.command)}" in caplog.text
+    assert f"Would run: {format_command(first.command)}" in caplog.text
     assert result.summary().startswith("Dry run: 2 export(s) would run.")
     assert str(out / "second.stl") in result.summary()
+
+
+def test_dry_run_command_line_is_shell_pasteable(fake_openscad, tmp_path, caplog):
+    csv = tmp_path / "p.csv"
+    csv.write_text('exported_filename,label,pts\nrow,hello world,"[1, 2]"\n')
+
+    with caplog.at_level(logging.INFO, logger="openscad_export"):
+        result = run(fake_openscad, str(csv), tmp_path / "o", dry_run=True)
+
+    printed = caplog.text.split("Would run: ", 1)[1].splitlines()[0]
+    if os.name == "nt":
+        assert '"-Dlabel=\\"hello world\\""' in printed
+    else:
+        import shlex
+
+        assert shlex.split(printed) == result.results[0].command
+
+
+def test_real_run_records_the_command_it_ran(fake_openscad, params_csv, tmp_path):
+    result = run(fake_openscad, params_csv, tmp_path / "o")
+
+    command = result.results[0].command
+    assert command[0] == fake_openscad and command[-1] == SCAD
+    assert "-Dsize=5" in command and "--export-format=binstl" in command
+    # the render goes to a .part sibling and is moved into place on success
+    assert command[command.index("-o") + 1] == str(tmp_path / "o" / ".first.part.stl")
+    assert (tmp_path / "o" / "first.stl").exists()
+    assert not (tmp_path / "o" / ".first.part.stl").exists()
+
+
+def test_failed_render_leaves_no_partial_output(fake_openscad, tmp_path, monkeypatch):
+    csv = tmp_path / "p.csv"
+    csv.write_text("exported_filename,size,fail\nbad,1,true\n")
+    monkeypatch.setenv("FAKE_OPENSCAD_PARTIAL", "1")
+    out = tmp_path / "o"
+
+    result = run(fake_openscad, str(csv), out)
+
+    assert result.failures and not result.successes
+    assert sorted(p.name for p in out.iterdir()) == []
+
+
+def test_skip_existing_reruns_a_case_whose_last_render_failed(fake_openscad, tmp_path, monkeypatch):
+    """The resume story: a failed/interrupted case must not look complete next time."""
+    csv = tmp_path / "p.csv"
+    csv.write_text("exported_filename,size,fail\ncase,1,true\n")
+    monkeypatch.setenv("FAKE_OPENSCAD_PARTIAL", "1")
+    out = tmp_path / "o"
+    run(fake_openscad, str(csv), out)  # fails, writes a partial first
+
+    csv.write_text("exported_filename,size,fail\ncase,1,false\n")
+    result = run(fake_openscad, str(csv), out, skip_existing=True)
+
+    assert result.skipped == [] and len(result.successes) == 1
+    assert (out / "case.stl").read_text() != "partial"
+
+
+def test_dry_run_with_a_bad_parameter_exits_1_and_says_would_fail(fake_openscad, tmp_path, capsys):
+    csv = tmp_path / "p.csv"
+    csv.write_text('exported_filename,pts\nbad,"[1,2"\n')
+
+    code = main(cli_args(str(csv), tmp_path, fake_openscad, "--dry-run"))
+
+    out = capsys.readouterr().out
+    assert code == 1
+    assert "Would fail before running" in out and "Error exporting" not in out
 
 
 def test_dry_run_still_reports_a_bad_parameter(fake_openscad, tmp_path):

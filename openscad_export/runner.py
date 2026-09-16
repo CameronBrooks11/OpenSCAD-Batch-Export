@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import concurrent.futures
+import contextlib
 import logging
 import os
+import shlex
 import subprocess
 import threading
 import time
@@ -158,14 +160,22 @@ def export_stl(openscad_path, scad_file, output_file, export_format, param_args,
             or ``["-p", file, "-P", set_name]``.
         extra_args (list of str): Further OpenSCAD options, e.g. ``--camera=...``.
 
+    OpenSCAD writes its output in place, so a failed or interrupted render would leave a
+    truncated file behind. The render therefore goes to a ``.<name>.part<ext>`` sibling
+    (same extension, so OpenSCAD still picks the format from it) and is moved onto
+    ``output_file`` only when OpenSCAD exits 0; otherwise the partial file is removed.
+    A present output file is thus a completed one, which is what ``skip_existing``
+    relies on.
+
     Returns:
         ExportResult
     """
     name, ext = os.path.splitext(os.path.basename(output_file))
+    partial = os.path.join(os.path.dirname(output_file), f".{name}.part{ext}")
     command = build_command(
-        openscad_path, scad_file, output_file, export_format, param_args, extra_args
+        openscad_path, scad_file, partial, export_format, param_args, extra_args
     )
-    log.debug("Running command: %s", " ".join(command))
+    log.debug("Running command: %s", format_command(command))
     start_time = time.perf_counter()
     proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     _active.add(proc)
@@ -177,6 +187,7 @@ def export_stl(openscad_path, scad_file, output_file, export_format, param_args,
         # parallel runner terminates their children instead.)
         proc.terminate()
         proc.wait(timeout=10)
+        _remove_quietly(partial)
         log.warning("Interrupted: terminated the running OpenSCAD process.")
         raise
     finally:
@@ -184,6 +195,10 @@ def export_stl(openscad_path, scad_file, output_file, export_format, param_args,
     duration = time.perf_counter() - start_time
     stderr = stderr_bytes.decode(errors="replace").strip()
     returncode = proc.returncode
+    if returncode == 0 and os.path.exists(partial):
+        os.replace(partial, output_file)
+    else:
+        _remove_quietly(partial)
     return ExportResult(
         name=name,
         output_path=output_file,
@@ -205,6 +220,18 @@ def build_command(openscad_path, scad_file, output_file, export_format, param_ar
     command += list(param_args)
     command.append(os.fspath(scad_file))
     return command
+
+
+def format_command(command):
+    """Render an argv list as a shell-pasteable command line for this platform."""
+    if os.name == "nt":
+        return subprocess.list2cmdline(command)
+    return shlex.join(command)
+
+
+def _remove_quietly(path):
+    with contextlib.suppress(FileNotFoundError):
+        os.remove(path)
 
 
 IMAGE_OPTIONS = ("camera", "imgsize", "colorscheme")
@@ -332,7 +359,7 @@ def batch_export(
                 command = build_command(
                     engine.path, scad_file, output_file, stl_flavour, param_args, extra_args
                 )
-                log.info("Would run: %s", " ".join(command))
+                log.info("Would run: %s", format_command(command))
                 return (idx, formats.index(fmt)), ExportResult(
                     filename, output_file, True, None, "", 0.0, fmt, command=command
                 )
@@ -343,6 +370,8 @@ def batch_export(
             log.info("Exported: %s in %.2f seconds.", result.output_path, result.duration)
         elif _active.closed:
             log.debug("Terminated: %s", result.output_path)
+        elif dry_run:
+            log.error("Would fail before running %s: %s", result.output_path, result.stderr)
         else:
             log.error(
                 "Error exporting %s: %s (Time: %.2f seconds)",

@@ -8,6 +8,7 @@ Available subcommands:
 
 import argparse
 import logging
+import os
 import sys
 
 from openscad_export.engine import OpenSCADError
@@ -183,6 +184,15 @@ def _run(args):
         if args.jobs is not None and args.jobs < 1:
             print("Error: --jobs must be at least 1.", file=sys.stderr)
             return 1
+        if args.summary:
+            # Fail now, not after a long batch, if the summary cannot be written there.
+            try:
+                os.makedirs(os.path.dirname(os.path.abspath(args.summary)), exist_ok=True)
+                with open(args.summary, "a", encoding="utf-8"):
+                    pass
+            except OSError as e:
+                print(f"Error: cannot write summary to {args.summary}: {e}", file=sys.stderr)
+                return 1
         try:
             result = batch_export(
                 args.scad_file,

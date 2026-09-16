@@ -8,10 +8,13 @@ import json
 import logging
 import os
 import shlex
+import signal
 import subprocess
 import threading
 import time
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from importlib import metadata
 
 from openscad_export.engine import Engine, detect_engine
 from openscad_export.params import (
@@ -47,7 +50,7 @@ class _ActiveProcesses:
             self._procs.add(proc)
             late = self.closed
         if late:
-            proc.terminate()
+            _signal_tree(proc, signal.SIGTERM)
 
     def discard(self, proc):
         with self._lock:
@@ -59,7 +62,7 @@ class _ActiveProcesses:
             procs = list(self._procs)
         for proc in procs:
             if proc.poll() is None:
-                proc.terminate()
+                _signal_tree(proc, signal.SIGTERM)
         return len(procs)
 
 
@@ -82,7 +85,7 @@ class ExportResult:
     command: list[str] | None = None
     """The OpenSCAD command line for this case (None if it never got that far)."""
     warnings: list[str] = field(default_factory=list)
-    """OpenSCAD's WARNING:/ECHO:/DEPRECATED:/TRACE: lines from stderr."""
+    """OpenSCAD's message lines from stderr (WARNING:, ECHO:, ERROR:, DEPRECATED:, ...)."""
     timed_out: bool = False
     """True when OpenSCAD was killed for exceeding the per-case timeout."""
 
@@ -108,6 +111,8 @@ class BatchResult:
     """The OpenSCAD that ran the batch."""
     inputs: dict | None = None
     """What was asked for: scad_file, parameter_file, output_folder, formats, jobs, ..."""
+    started_at: str | None = None
+    """UTC start time of the batch, ISO 8601."""
 
     @property
     def successes(self):
@@ -124,6 +129,8 @@ class BatchResult:
     def to_dict(self):
         """JSON-serialisable record of the whole batch: engine, inputs, per-case results."""
         return {
+            "openscad_batch_export": _tool_version(),
+            "started_at": self.started_at,
             "openscad": None
             if self.engine is None
             else {"path": self.engine.path, "version": self.engine.version},
@@ -133,6 +140,7 @@ class BatchResult:
             "counts": {
                 "ok": len(self.successes),
                 "failed": len(self.failures),
+                "timeout": sum(r.timed_out for r in self.results),
                 "skipped": len(self.skipped),
             },
             "results": [
@@ -152,7 +160,8 @@ class BatchResult:
         }
 
     def write_summary(self, path):
-        """Write :meth:`to_dict` as JSON to ``path``."""
+        """Write :meth:`to_dict` as JSON to ``path``, creating its directory if needed."""
+        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
             json.dump(self.to_dict(), f, indent=2)
             f.write("\n")
@@ -184,12 +193,19 @@ class BatchResult:
         if self.failures:
             lines.append("Failed to export the following files:")
             lines.extend(f"  - {r.output_path}: {r.stderr}" for r in self.failures)
-        with_warnings = [r for r in self.results if r.warnings]
+        # Failed cases already show their full stderr above; ECHO/TRACE chatter stays in
+        # the per-case log and the JSON record.
+        with_warnings = [
+            (r, [w for w in r.warnings if not w.startswith(_CHATTER_PREFIXES)])
+            for r in self.results
+            if r.ok
+        ]
+        with_warnings = [(r, ws) for r, ws in with_warnings if ws]
         if with_warnings:
-            lines.append(f"OpenSCAD warnings/echo output from {len(with_warnings)} case(s):")
-            for r in with_warnings:
+            lines.append(f"OpenSCAD warnings from {len(with_warnings)} successful case(s):")
+            for r, ws in with_warnings:
                 lines.append(f"  - {r.output_path}:")
-                lines.extend(f"      {line}" for line in r.warnings)
+                lines.extend(f"      {line}" for line in ws)
         lines.append("")
         lines.append(f"Total time taken: {self.total_duration:.2f} seconds.")
         return "\n".join(lines)
@@ -225,8 +241,9 @@ def export_stl(
         timeout (float or None): Seconds after which OpenSCAD is killed and the case is
             reported as a failure with ``timed_out`` set.
 
-    OpenSCAD's ``WARNING:``, ``ECHO:``, ``DEPRECATED:`` and ``TRACE:`` lines on stderr
-    are collected into ``ExportResult.warnings`` whether or not the export succeeded.
+    Every OpenSCAD message line on stderr (``WARNING:``, ``ECHO:``, ``ERROR:``,
+    ``DEPRECATED:``, ``TRACE:``, ``EXPORT-WARNING:``, ...) is collected into
+    ``ExportResult.warnings`` whether or not the export succeeded.
 
     OpenSCAD writes its output in place, so a failed or interrupted render would leave a
     truncated file behind. The render therefore goes to a ``.<name>.part<ext>`` sibling
@@ -245,7 +262,9 @@ def export_stl(
     )
     log.debug("Running command: %s", format_command(command))
     start_time = time.perf_counter()
-    proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.Popen(
+        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True
+    )
     _active.add(proc)
     timed_out = False
     try:
@@ -253,13 +272,13 @@ def export_stl(
             _, stderr_bytes = proc.communicate(timeout=timeout)
         except subprocess.TimeoutExpired:
             timed_out = True
-            _kill_tree(proc)
+            _signal_tree(proc, signal.SIGKILL)
             _, stderr_bytes = proc.communicate()
     except KeyboardInterrupt:
         # Sequential mode: the interrupt lands here, in the main thread, while the
         # child is still running. (Worker threads never receive KeyboardInterrupt; the
         # parallel runner terminates their children instead.)
-        proc.terminate()
+        _signal_tree(proc, signal.SIGTERM)
         proc.wait(timeout=10)
         _remove_quietly(partial)
         log.warning("Interrupted: terminated the running OpenSCAD process.")
@@ -291,7 +310,21 @@ def export_stl(
     )
 
 
-_DIAGNOSTIC_PREFIXES = ("WARNING:", "ECHO:", "DEPRECATED:", "TRACE:")
+# OpenSCAD's message groups, as printed at the start of a stderr line.
+_DIAGNOSTIC_PREFIXES = (
+    "WARNING:",
+    "ECHO:",
+    "DEPRECATED:",
+    "TRACE:",
+    "ERROR:",
+    "PARSER-ERROR:",
+    "UI-WARNING:",
+    "UI-ERROR:",
+    "EXPORT-WARNING:",
+    "EXPORT-ERROR:",
+    "FONT-WARNING:",
+)
+_CHATTER_PREFIXES = ("ECHO:", "TRACE:")
 
 
 def build_command(openscad_path, scad_file, output_file, export_format, param_args, extra_args=()):
@@ -312,15 +345,35 @@ def format_command(command):
     return shlex.join(command)
 
 
-def _kill_tree(proc):
-    """Kill the process and, on Windows, its descendants: a .bat/.cmd wrapper around
-    OpenSCAD would otherwise die alone while the render kept the pipes open."""
+def _signal_tree(proc, sig):
+    """Deliver sig to the process and everything it started.
+
+    OpenSCAD is rarely the direct child: the Linux AppImage runtime forks the real
+    binary, and a .bat/.cmd or shell wrapper does the same. Signalling only the direct
+    child would leave the render alive, holding our pipes, so export_stl starts each
+    process in its own session and this signals the whole group (taskkill /T on Windows,
+    where sig is ignored and the tree is force-terminated).
+    """
     if os.name == "nt":
         subprocess.run(
             ["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output=True, check=False
         )
-    else:
-        proc.kill()
+        return
+    with contextlib.suppress(ProcessLookupError):  # already gone
+        pgid = os.getpgid(proc.pid)
+        if pgid == os.getpgrp():
+            # Not a session leader (not started by export_stl): signalling the group
+            # would hit ourselves. Fall back to the process alone.
+            proc.send_signal(sig)
+        else:
+            os.killpg(pgid, sig)
+
+
+def _tool_version():
+    try:
+        return metadata.version("openscad-batch-export")
+    except metadata.PackageNotFoundError:
+        return None
 
 
 def _remove_quietly(path):
@@ -494,6 +547,7 @@ def batch_export(
         return (idx, formats.index(fmt)), result
 
     tasks = [(idx, params, fmt) for idx, params in cases for fmt in formats]
+    started_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     total_start_time = time.perf_counter()
     _active.reset()
     if jobs == 1:
@@ -523,6 +577,7 @@ def batch_export(
         dry_run=dry_run,
         engine=engine,
         inputs=inputs,
+        started_at=started_at,
     )
 
 

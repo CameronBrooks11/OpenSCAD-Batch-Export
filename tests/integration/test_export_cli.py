@@ -293,7 +293,8 @@ def test_warnings_and_echo_are_captured_into_the_json_summary(tmp_path):
     assert doc["openscad"]["version"] and doc["openscad"]["path"]
     assert doc["inputs"]["scad_file"] == str(scad)
     assert case["command"][0] == doc["openscad"]["path"]
-    assert "OpenSCAD warnings/echo output from 1 case(s):" in result.stdout
+    assert "OpenSCAD warnings from 1 successful case(s):" in result.stdout
+    assert "ECHO:" in result.stdout  # re-logged per case as it happened
 
 
 def test_timeout_kills_a_slow_render_and_leaves_nothing_behind(tmp_path):

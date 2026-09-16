@@ -123,7 +123,7 @@ openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad-
 - `--skip-existing`: leave a case alone when its output file already exists, and say so in the summary. The default (`--overwrite`) re-exports everything.
 - `-n`, `--dry-run`: print the OpenSCAD command for every case and run nothing; no files or folders are created.
 - `--timeout SECONDS`: kill a case that runs longer than this; it is recorded as timed out and the batch continues.
-- `--summary PATH.json`: write a machine-readable record of the run — OpenSCAD path and version, the inputs, and for every case its status (`ok`, `failed`, `timeout`, `skipped`, `dry-run`), return code, duration, OpenSCAD `WARNING:`/`ECHO:` lines and the exact command line. Written for failed and dry runs too, so CI can check it in.
+- `--summary PATH.json`: write a machine-readable record of the run — OpenSCAD path and version, the inputs, and for every case its status (`ok`, `failed`, `timeout`, `skipped`, `dry-run`), return code, duration, OpenSCAD message lines (`WARNING:`, `ECHO:`, `ERROR:`, `EXPORT-WARNING:`, ...) and the exact command line, plus the tool version and a UTC timestamp. Written for failed and dry runs too, so CI can check it in; the directory is created if needed.
 - `--select SELECTION`: Select specific parameter sets to export using indices and ranges. Format examples: `'0-5'`, `'1-3,7,10-12'`, `'2,4'`. Indices are zero-based.
 
 **Examples:**

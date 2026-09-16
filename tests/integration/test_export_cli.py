@@ -271,3 +271,47 @@ def test_skip_existing_does_not_re_render(tmp_path):
     assert (tmp_path / "cube_medium.stl").exists()  # the missing one was rendered
     for name, mtime in before.items():
         assert (tmp_path / name).stat().st_mtime_ns == mtime, name  # the others were not
+
+
+def test_warnings_and_echo_are_captured_into_the_json_summary(tmp_path):
+    import json
+
+    scad = tmp_path / "noisy.scad"
+    scad.write_text('size = 5;\necho("size is", size);\nx = undefined_thing;\ncube(size);\n')
+    params = tmp_path / "params.csv"
+    params.write_text("exported_filename,size\na,5\n")
+    summary = tmp_path / "run.json"
+
+    result = run_cli("export", scad, params, tmp_path / "out", "--summary", summary)
+
+    assert result.returncode == 0, result.stdout
+    doc = json.loads(summary.read_text())
+    (case,) = doc["results"]
+    assert case["status"] == "ok" and case["returncode"] == 0
+    assert any(w.startswith("ECHO:") and '"size is", 5' in w for w in case["warnings"]), case
+    assert any(w.startswith("WARNING:") and "undefined_thing" in w for w in case["warnings"]), case
+    assert doc["openscad"]["version"] and doc["openscad"]["path"]
+    assert doc["inputs"]["scad_file"] == str(scad)
+    assert case["command"][0] == doc["openscad"]["path"]
+    assert "OpenSCAD warnings from 1 successful case(s):" in result.stdout
+    assert "ECHO:" in result.stdout  # re-logged per case as it happened
+
+
+def test_timeout_kills_a_slow_render_and_leaves_nothing_behind(tmp_path):
+    scad = tmp_path / "slow.scad"
+    scad.write_text(
+        "n = 1;\n"
+        "if (n < 0) cube(1);  // the cheap case, for any engine\n"
+        "else for (i = [0:n]) for (j = [0:n]) translate([i * 5, j * 5, 0])\n"
+        "    difference() { sphere(2, $fn = 96); sphere(1.5, $fn = 96); }\n"
+    )
+    params = tmp_path / "params.csv"
+    params.write_text("exported_filename,n\nbig,12\nsmall,-1\n")
+    out = tmp_path / "out"
+
+    result = run_cli("export", scad, params, out, "--timeout", "1", "-j", "1")
+
+    assert result.returncode == 1
+    assert "big.stl: Timed out after 1 s" in result.stdout
+    assert "Successful exports: 1" in result.stdout  # the batch continued to the small case
+    assert sorted(p.name for p in out.iterdir()) == ["small.stl"]  # no partial, no .part

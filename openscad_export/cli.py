@@ -8,6 +8,7 @@ Available subcommands:
 
 import argparse
 import logging
+import os
 import sys
 
 from openscad_export.engine import OpenSCADError
@@ -126,6 +127,20 @@ def parse_arguments(argv=None):
         action="store_true",
         help="Print the OpenSCAD command for each case and run nothing.",
     )
+    export_parser.add_argument(
+        "--timeout",
+        type=float,
+        metavar="SECONDS",
+        help="Kill a case that runs longer than this and record it as timed out.",
+    )
+    export_parser.add_argument(
+        "--summary",
+        metavar="PATH.json",
+        help=(
+            "Write a JSON record of the run: OpenSCAD version, inputs, and per-case "
+            "status, duration, return code, warnings and command line."
+        ),
+    )
 
     # csv2json subcommand
     csv2json_parser = subparsers.add_parser("csv2json", help="Convert CSV parameter file to JSON.")
@@ -169,6 +184,15 @@ def _run(args):
         if args.jobs is not None and args.jobs < 1:
             print("Error: --jobs must be at least 1.", file=sys.stderr)
             return 1
+        if args.summary:
+            # Fail now, not after a long batch, if the summary cannot be written there.
+            try:
+                os.makedirs(os.path.dirname(os.path.abspath(args.summary)), exist_ok=True)
+                with open(args.summary, "a", encoding="utf-8"):
+                    pass
+            except OSError as e:
+                print(f"Error: cannot write summary to {args.summary}: {e}", file=sys.stderr)
+                return 1
         try:
             result = batch_export(
                 args.scad_file,
@@ -183,6 +207,7 @@ def _run(args):
                 jobs=args.jobs,
                 skip_existing=args.skip_existing,
                 dry_run=args.dry_run,
+                timeout=args.timeout,
             )
         except (OpenSCADError, ValueError) as e:
             print(f"Error: {e}", file=sys.stderr)
@@ -192,6 +217,9 @@ def _run(args):
             return 130
         print()
         print(result.summary())
+        if args.summary:
+            result.write_summary(args.summary)
+            print(f"Summary written to {args.summary}")
         return 1 if result.failures else 0
     if args.command == "csv2json":
         csv_to_json(args.csv_file, args.json_file)

@@ -457,7 +457,9 @@ def test_process_registered_after_an_interrupt_is_terminated_on_arrival():
 
     registry = runner._ActiveProcesses()
     registry.terminate_all()
-    late = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    late = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(30)"], start_new_session=True
+    )
     try:
         registry.add(late)
         assert late.wait(timeout=5) != 0
@@ -466,3 +468,20 @@ def test_process_registered_after_an_interrupt_is_terminated_on_arrival():
             late.kill()
     registry.reset()
     assert registry.closed is False
+
+
+@pytest.mark.skipif(os.name == "nt", reason="process groups are POSIX")
+def test_signalling_a_process_in_our_own_group_never_hits_ourselves():
+    import signal
+    import subprocess
+    import sys
+
+    from openscad_export import runner
+
+    same_group = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        runner._signal_tree(same_group, kill=False)  # would kill pytest if it used killpg
+        assert same_group.wait(timeout=5) == -signal.SIGTERM
+    finally:
+        if same_group.poll() is None:
+            same_group.kill()

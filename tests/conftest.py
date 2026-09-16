@@ -59,6 +59,10 @@ FAKE_OPENSCAD = textwrap.dedent(
         with open(out, "w") as f:
             f.write("partial")
     time.sleep(float(os.environ.get("FAKE_OPENSCAD_SLEEP", "0")))
+    # FAKE_OPENSCAD_STDERR: | separated diagnostics, emitted before any failure like the
+    # real engine's, e.g. "ECHO: x = 5|WARNING: unused variable|Compiling design".
+    for line in filter(None, os.environ.get("FAKE_OPENSCAD_STDERR", "").split("|")):
+        sys.stderr.write(line + "\\n")
     if log_path:
         with open(log_path, "a") as f:
             f.write(f"end {time.monotonic():.4f} {os.getpid()}\\n")

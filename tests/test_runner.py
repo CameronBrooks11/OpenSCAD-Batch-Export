@@ -480,7 +480,7 @@ def test_signalling_a_process_in_our_own_group_never_hits_ourselves():
 
     same_group = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
     try:
-        runner._signal_tree(same_group, signal.SIGTERM)  # would kill pytest if it used killpg
+        runner._signal_tree(same_group, kill=False)  # would kill pytest if it used killpg
         assert same_group.wait(timeout=5) == -signal.SIGTERM
     finally:
         if same_group.poll() is None:

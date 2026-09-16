@@ -50,7 +50,7 @@ class _ActiveProcesses:
             self._procs.add(proc)
             late = self.closed
         if late:
-            _signal_tree(proc, signal.SIGTERM)
+            _signal_tree(proc, kill=False)
 
     def discard(self, proc):
         with self._lock:
@@ -62,7 +62,7 @@ class _ActiveProcesses:
             procs = list(self._procs)
         for proc in procs:
             if proc.poll() is None:
-                _signal_tree(proc, signal.SIGTERM)
+                _signal_tree(proc, kill=False)
         return len(procs)
 
 
@@ -272,13 +272,13 @@ def export_stl(
             _, stderr_bytes = proc.communicate(timeout=timeout)
         except subprocess.TimeoutExpired:
             timed_out = True
-            _signal_tree(proc, signal.SIGKILL)
+            _signal_tree(proc, kill=True)
             _, stderr_bytes = proc.communicate()
     except KeyboardInterrupt:
         # Sequential mode: the interrupt lands here, in the main thread, while the
         # child is still running. (Worker threads never receive KeyboardInterrupt; the
         # parallel runner terminates their children instead.)
-        _signal_tree(proc, signal.SIGTERM)
+        _signal_tree(proc, kill=False)
         proc.wait(timeout=10)
         _remove_quietly(partial)
         log.warning("Interrupted: terminated the running OpenSCAD process.")
@@ -345,20 +345,21 @@ def format_command(command):
     return shlex.join(command)
 
 
-def _signal_tree(proc, sig):
-    """Deliver sig to the process and everything it started.
+def _signal_tree(proc, kill):
+    """Terminate (or, with kill=True, kill outright) the process and everything it started.
 
     OpenSCAD is rarely the direct child: the Linux AppImage runtime forks the real
     binary, and a .bat/.cmd or shell wrapper does the same. Signalling only the direct
     child would leave the render alive, holding our pipes, so export_stl starts each
-    process in its own session and this signals the whole group (taskkill /T on Windows,
-    where sig is ignored and the tree is force-terminated).
+    process in its own session and this signals the whole group: SIGTERM or SIGKILL on
+    POSIX, taskkill /T (always forced) on Windows.
     """
     if os.name == "nt":
         subprocess.run(
             ["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output=True, check=False
         )
         return
+    sig = signal.SIGKILL if kill else signal.SIGTERM
     with contextlib.suppress(ProcessLookupError):  # already gone
         pgid = os.getpgid(proc.pid)
         if pgid == os.getpgrp():

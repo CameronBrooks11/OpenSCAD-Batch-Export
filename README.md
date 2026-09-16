@@ -3,6 +3,7 @@
 This repository provides a tool to automate the export of STL models from OpenSCAD using CSV or JSON files of parameters. It offers a simple and user-friendly solution for batch exporting models with different parameter sets and includes a graphical user interface (GUI) for ease of use. Inspired by:
 
 [18107/OpenSCAD-batch-export-stl](https://github.com/18107/OpenSCAD-batch-export-stl)
+
 [OutwardBuckle/OpenSCAD-Bulk-Export](https://github.com/OutwardBuckle/OpenSCAD-Bulk-Export)
 
 ## Features

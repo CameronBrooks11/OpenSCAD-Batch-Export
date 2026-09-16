@@ -104,7 +104,7 @@ Export STL files using either a CSV or JSON parameter file.
 **Command Structure:**
 
 ```
-openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad-path PATH] [--format EXT ...] [--export-format asciistl|binstl] [--select SELECTION] [-j N]
+openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad-path PATH] [--format EXT ...] [--export-format asciistl|binstl] [--select SELECTION] [-j N] [--skip-existing | --overwrite] [--dry-run]
 ```
 
 **Parameters:**
@@ -120,6 +120,8 @@ openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad-
 - `--export-format`: STL flavour, `asciistl` or `binstl`. Defaults to `binstl`. Only applies to `stl`.
 - `--camera`, `--imgsize`, `--colorscheme`: passed straight to OpenSCAD for `png` output, e.g. `--format png --imgsize 1024,768 --camera 0,0,0,55,0,25,140`. OpenSCAD 2021.01 needs a display to render PNG (`xvfb-run openscad-export ...` on a headless Linux box); current builds render offscreen.
 - `-j N`, `--jobs N`: run up to N OpenSCAD processes at once. Defaults to the number of CPUs. Ctrl-C stops the running renders and abandons the rest. (`--sequential` is a deprecated alias for `--jobs 1`.)
+- `--skip-existing`: leave a case alone when its output file already exists, and say so in the summary. The default (`--overwrite`) re-exports everything.
+- `-n`, `--dry-run`: print the OpenSCAD command for every case and run nothing; no files or folders are created.
 - `--select SELECTION`: Select specific parameter sets to export using indices and ranges. Format examples: `'0-5'`, `'1-3,7,10-12'`, `'2,4'`. Indices are zero-based.
 
 **Examples:**

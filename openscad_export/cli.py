@@ -109,6 +109,23 @@ def parse_arguments(argv=None):
         action="store_true",
         help="Deprecated: same as --jobs 1.",
     )
+    existing = export_parser.add_mutually_exclusive_group()
+    existing.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Re-export a case even if its output file already exists (the default).",
+    )
+    existing.add_argument(
+        "--skip-existing",
+        action="store_true",
+        help="Skip a case whose output file already exists.",
+    )
+    export_parser.add_argument(
+        "-n",
+        "--dry-run",
+        action="store_true",
+        help="Print the OpenSCAD command for each case and run nothing.",
+    )
 
     # csv2json subcommand
     csv2json_parser = subparsers.add_parser("csv2json", help="Convert CSV parameter file to JSON.")
@@ -164,6 +181,8 @@ def _run(args):
                 formats=args.format or ["stl"],
                 image_options={k: getattr(args, k) for k in ("camera", "imgsize", "colorscheme")},
                 jobs=args.jobs,
+                skip_existing=args.skip_existing,
+                dry_run=args.dry_run,
             )
         except (OpenSCADError, ValueError) as e:
             print(f"Error: {e}", file=sys.stderr)

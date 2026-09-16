@@ -234,3 +234,40 @@ def test_unwritable_format_fails_per_case_with_openscads_own_message(tmp_path):
     assert "Failed exports: 1" in result.stdout and "Successful exports: 1" in result.stdout
     assert (tmp_path / "out" / "cube_small.off").exists()
     assert not (tmp_path / "out" / "cube_small.xyz").exists()
+
+
+def test_dry_run_prints_the_real_command_and_touches_nothing(tmp_path):
+    out = tmp_path / "out"
+    result = run_cli(
+        "export", SIMPLE_CUBE / "simpleCube.scad", SIMPLE_CUBE / "simpleCube.csv", out, "--dry-run"
+    )
+
+    assert result.returncode == 0, result.stdout
+    assert not out.exists()
+    assert result.stdout.count("Would run: ") == 3
+    assert f"-o {out / 'cube_small.stl'} --export-format=binstl -Ddepth=10" in result.stdout
+    assert "Dry run: 3 export(s) would run." in result.stdout
+
+
+def test_skip_existing_does_not_re_render(tmp_path):
+    first = run_cli(
+        "export", SIMPLE_CUBE / "simpleCube.scad", SIMPLE_CUBE / "simpleCube.csv", tmp_path
+    )
+    assert first.returncode == 0
+    (tmp_path / "cube_medium.stl").unlink()
+    before = {p.name: p.stat().st_mtime_ns for p in tmp_path.glob("*.stl")}
+
+    second = run_cli(
+        "export",
+        SIMPLE_CUBE / "simpleCube.scad",
+        SIMPLE_CUBE / "simpleCube.csv",
+        tmp_path,
+        "--skip-existing",
+    )
+
+    assert second.returncode == 0, second.stdout
+    assert "Skipped (already present): 2" in second.stdout
+    assert "Total exports attempted: 1" in second.stdout
+    assert (tmp_path / "cube_medium.stl").exists()  # the missing one was rendered
+    for name, mtime in before.items():
+        assert (tmp_path / name).stat().st_mtime_ns == mtime, name  # the others were not

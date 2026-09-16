@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import concurrent.futures
+import contextlib
 import logging
 import os
+import shlex
 import subprocess
 import threading
 import time
@@ -74,6 +76,10 @@ class ExportResult:
     stderr: str
     duration: float
     format: str = "stl"
+    skipped: bool = False
+    """True when the output already existed and skip_existing left it alone."""
+    command: list[str] | None = None
+    """The OpenSCAD command line for this case (None if it never got that far)."""
 
 
 @dataclass
@@ -82,25 +88,43 @@ class BatchResult:
 
     results: list[ExportResult]
     total_duration: float
+    dry_run: bool = False
 
     @property
     def successes(self):
-        return [r for r in self.results if r.ok]
+        return [r for r in self.results if r.ok and not r.skipped]
 
     @property
     def failures(self):
         return [r for r in self.results if not r.ok]
 
+    @property
+    def skipped(self):
+        return [r for r in self.results if r.skipped]
+
     def summary(self):
         """Human-readable summary of the batch."""
+        if self.dry_run:
+            lines = [f"Dry run: {len(self.successes)} export(s) would run."]
+            lines.extend(f"  - {r.output_path}" for r in self.successes)
+            if self.skipped:
+                lines.append(f"Skipped (already present): {len(self.skipped)}")
+                lines.extend(f"  - {r.output_path}" for r in self.skipped)
+            if self.failures:
+                lines.append(f"Would fail before running: {len(self.failures)}")
+                lines.extend(f"  - {r.output_path}: {r.stderr}" for r in self.failures)
+            return "\n".join(lines)
         lines = [
             "Batch export completed.",
-            f"Total exports attempted: {len(self.results)}",
+            f"Total exports attempted: {len(self.results) - len(self.skipped)}",
             f"Successful exports: {len(self.successes)}",
         ]
         if self.successes:
             lines.append("Successfully exported files:")
             lines.extend(f"  - {r.output_path}" for r in self.successes)
+        if self.skipped:
+            lines.append(f"Skipped (already present): {len(self.skipped)}")
+            lines.extend(f"  - {r.output_path}" for r in self.skipped)
         lines.append(f"Failed exports: {len(self.failures)}")
         if self.failures:
             lines.append("Failed to export the following files:")
@@ -136,17 +160,22 @@ def export_stl(openscad_path, scad_file, output_file, export_format, param_args,
             or ``["-p", file, "-P", set_name]``.
         extra_args (list of str): Further OpenSCAD options, e.g. ``--camera=...``.
 
+    OpenSCAD writes its output in place, so a failed or interrupted render would leave a
+    truncated file behind. The render therefore goes to a ``.<name>.part<ext>`` sibling
+    (same extension, so OpenSCAD still picks the format from it) and is moved onto
+    ``output_file`` only when OpenSCAD exits 0; otherwise the partial file is removed.
+    A present output file is thus a completed one, which is what ``skip_existing``
+    relies on.
+
     Returns:
         ExportResult
     """
     name, ext = os.path.splitext(os.path.basename(output_file))
-    command = [openscad_path, "-o", output_file]
-    if export_format:
-        command.append(f"--export-format={export_format}")
-    command += list(extra_args)
-    command += param_args
-    command.append(scad_file)
-    log.debug("Running command: %s", " ".join(command))
+    partial = os.path.join(os.path.dirname(output_file), f".{name}.part{ext}")
+    command = build_command(
+        openscad_path, scad_file, partial, export_format, param_args, extra_args
+    )
+    log.debug("Running command: %s", format_command(command))
     start_time = time.perf_counter()
     proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     _active.add(proc)
@@ -158,6 +187,7 @@ def export_stl(openscad_path, scad_file, output_file, export_format, param_args,
         # parallel runner terminates their children instead.)
         proc.terminate()
         proc.wait(timeout=10)
+        _remove_quietly(partial)
         log.warning("Interrupted: terminated the running OpenSCAD process.")
         raise
     finally:
@@ -165,6 +195,10 @@ def export_stl(openscad_path, scad_file, output_file, export_format, param_args,
     duration = time.perf_counter() - start_time
     stderr = stderr_bytes.decode(errors="replace").strip()
     returncode = proc.returncode
+    if returncode == 0 and os.path.exists(partial):
+        os.replace(partial, output_file)
+    else:
+        _remove_quietly(partial)
     return ExportResult(
         name=name,
         output_path=output_file,
@@ -173,7 +207,31 @@ def export_stl(openscad_path, scad_file, output_file, export_format, param_args,
         stderr=stderr if returncode != 0 else "",
         duration=duration,
         format=ext.lstrip(".").lower(),
+        command=command,
     )
+
+
+def build_command(openscad_path, scad_file, output_file, export_format, param_args, extra_args=()):
+    """The OpenSCAD command line export_stl would run; see export_stl for the arguments."""
+    command = [openscad_path, "-o", os.fspath(output_file)]
+    if export_format:
+        command.append(f"--export-format={export_format}")
+    command += list(extra_args)
+    command += list(param_args)
+    command.append(os.fspath(scad_file))
+    return command
+
+
+def format_command(command):
+    """Render an argv list as a shell-pasteable command line for this platform."""
+    if os.name == "nt":
+        return subprocess.list2cmdline(command)
+    return shlex.join(command)
+
+
+def _remove_quietly(path):
+    with contextlib.suppress(FileNotFoundError):
+        os.remove(path)
 
 
 IMAGE_OPTIONS = ("camera", "imgsize", "colorscheme")
@@ -190,6 +248,8 @@ def batch_export(
     formats=("stl",),
     image_options=None,
     jobs=None,
+    skip_existing=False,
+    dry_run=False,
 ):
     """
     Perform batch export of files based on parameter sets.
@@ -210,6 +270,10 @@ def batch_export(
             ``--help`` does not list for ``-o`` is warned about, not refused.
         image_options (dict or None): ``camera``, ``imgsize``, ``colorscheme`` values
             passed through as OpenSCAD's ``--camera=``, ``--imgsize=``, ``--colorscheme=``.
+        skip_existing (bool): Leave a case alone when its output file already exists
+            (reported as skipped). Default is to overwrite.
+        dry_run (bool): Build and log every command but run nothing and create nothing;
+            each result carries the command it would have run.
 
     Customizer JSON parameter sets are passed to OpenSCAD with ``-p FILE -P SET`` when
     the engine supports it (2019.05+); CSV rows are passed as ``-D`` flags. A case never
@@ -256,7 +320,8 @@ def batch_export(
     if unknown:
         raise ValueError(f"Unknown image option(s): {', '.join(sorted(unknown))}")
     parameters = read_parameters(parameter_file)
-    ensure_output_folder(output_folder)
+    if not dry_run:
+        ensure_output_folder(output_folder)
 
     # Customizer JSON goes to OpenSCAD natively (-p FILE -P SET) when the engine can
     # take it, so values are typed by the model's own defaults and unset keys keep
@@ -284,18 +349,29 @@ def batch_export(
         except ValueError as e:
             result = ExportResult(filename, output_file, False, None, str(e), 0.0, fmt)
         else:
+            stl_flavour = export_format if fmt == "stl" else None
+            if skip_existing and os.path.exists(output_file):
+                log.info("Skipped (already present): %s", output_file)
+                return (idx, formats.index(fmt)), ExportResult(
+                    filename, output_file, True, None, "", 0.0, fmt, skipped=True
+                )
+            if dry_run:
+                command = build_command(
+                    engine.path, scad_file, output_file, stl_flavour, param_args, extra_args
+                )
+                log.info("Would run: %s", format_command(command))
+                return (idx, formats.index(fmt)), ExportResult(
+                    filename, output_file, True, None, "", 0.0, fmt, command=command
+                )
             result = export_stl(
-                engine.path,
-                scad_file,
-                output_file,
-                export_format if fmt == "stl" else None,
-                param_args,
-                extra_args,
+                engine.path, scad_file, output_file, stl_flavour, param_args, extra_args
             )
         if result.ok:
             log.info("Exported: %s in %.2f seconds.", result.output_path, result.duration)
         elif _active.closed:
             log.debug("Terminated: %s", result.output_path)
+        elif dry_run:
+            log.error("Would fail before running %s: %s", result.output_path, result.stderr)
         else:
             log.error(
                 "Error exporting %s: %s (Time: %.2f seconds)",
@@ -317,7 +393,7 @@ def batch_export(
     total_duration = time.perf_counter() - total_start_time
 
     indexed.sort(key=lambda pair: pair[0])
-    return BatchResult([result for _, result in indexed], total_duration)
+    return BatchResult([result for _, result in indexed], total_duration, dry_run=dry_run)
 
 
 def _on_interrupt():

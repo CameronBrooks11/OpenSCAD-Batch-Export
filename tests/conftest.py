@@ -54,6 +54,10 @@ FAKE_OPENSCAD = textwrap.dedent(
                 sys.exit(143)
 
             signal.signal(signal.SIGTERM, on_term)
+    if os.environ.get("FAKE_OPENSCAD_PARTIAL"):
+        # Like the real engine, start writing the output before we know we will finish.
+        with open(out, "w") as f:
+            f.write("partial")
     time.sleep(float(os.environ.get("FAKE_OPENSCAD_SLEEP", "0")))
     if log_path:
         with open(log_path, "a") as f:

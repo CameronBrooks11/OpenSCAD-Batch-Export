@@ -149,3 +149,6 @@ MANIFEST
 pyinstaller_dist/
 pyinstaller_build/
 *.spec
+
+# Claude Code harness state (not project files)
+.claude/

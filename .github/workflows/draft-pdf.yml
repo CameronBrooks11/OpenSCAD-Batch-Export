@@ -1,10 +1,11 @@
+# Builds the JOSS draft PDF on demand and publishes it as a run artifact.
+# It deliberately does not commit paper.pdf: the committed copy is regenerated
+# by hand when the paper is submitted, so main stays human-authored.
+
 name: Draft PDF
 
 on:
-  push:
-    paths:
-      - 'paper/paper.md'
-      - 'paper/paper.bib'
+  workflow_dispatch:
 
 jobs:
   paper:
@@ -20,11 +21,8 @@ jobs:
           journal: joss
           paper-path: paper/paper.md
 
-      - name: Commit PDF to repository
-        uses: EndBug/add-and-commit@v11
+      - name: Upload draft PDF
+        uses: actions/upload-artifact@v7
         with:
-          message: '(auto) Paper PDF Draft'
-          add: 'paper/paper.pdf'
-
-      - name: Verify Commit
-        run: git log -1 --oneline
+          name: paper-draft
+          path: paper/paper.pdf

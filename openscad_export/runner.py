@@ -20,6 +20,7 @@ from openscad_export.engine import Engine, detect_engine
 from openscad_export.params import (
     construct_d_flags,
     is_parameter_set_file,
+    output_name,
     parse_selection,
     read_parameters,
 )
@@ -88,6 +89,10 @@ class ExportResult:
     """OpenSCAD's message lines from stderr (WARNING:, ECHO:, ERROR:, DEPRECATED:, ...)."""
     timed_out: bool = False
     """True when OpenSCAD was killed for exceeding the per-case timeout."""
+    index: int | None = None
+    """Position of the parameter set in the input file."""
+    set_name: str | None = None
+    """The parameter set's own name (Customizer set name or exported_filename), unsanitised."""
 
     @property
     def status(self):
@@ -145,6 +150,8 @@ class BatchResult:
             },
             "results": [
                 {
+                    "index": r.index,
+                    "set_name": r.set_name,
                     "name": r.name,
                     "output_path": r.output_path,
                     "format": r.format,
@@ -289,13 +296,16 @@ def export_stl(
     stderr = stderr_bytes.decode(errors="replace").strip()
     warnings = [line for line in stderr.splitlines() if line.startswith(_DIAGNOSTIC_PREFIXES)]
     returncode = proc.returncode
-    ok = returncode == 0  # a killed process never exits 0
-    if ok and os.path.exists(partial):
+    ok = returncode == 0 and os.path.exists(partial)  # a killed process never exits 0
+    if ok:
         os.replace(partial, output_file)
     else:
         _remove_quietly(partial)
     if timed_out:
         stderr = f"Timed out after {timeout:g} s"
+    elif returncode == 0:
+        # OpenSCAD exits 0 for e.g. "Can't open file" on an unwritable path.
+        stderr = stderr or "OpenSCAD exited 0 but wrote no output file"
     return ExportResult(
         name=name,
         output_path=output_file,
@@ -370,6 +380,25 @@ def _signal_tree(proc, kill):
             os.killpg(pgid, sig)
 
 
+def _reject_duplicate_names(names):
+    """names: {case index: output name}. Two cases writing the same file would race.
+    Compared case-insensitively, since Windows and macOS file systems are."""
+    by_name = {}
+    for idx, name in names.items():
+        by_name.setdefault(name.casefold(), []).append(idx)
+    clashes = {key: idxs for key, idxs in by_name.items() if len(idxs) > 1}
+    if clashes:
+        detail = "; ".join(
+            f"{' / '.join(map(repr, dict.fromkeys(names[i] for i in idxs)))} from parameter sets "
+            f"{', '.join(map(str, idxs))}"
+            for idxs in clashes.values()
+        )
+        raise ValueError(
+            f"Duplicate output names: {detail}. Give the sets distinct names, or use a "
+            "name template such as '{name}_{index}'."
+        )
+
+
 def _tool_version():
     try:
         return metadata.version("openscad-batch-export")
@@ -378,7 +407,7 @@ def _tool_version():
 
 
 def _remove_quietly(path):
-    with contextlib.suppress(FileNotFoundError):
+    with contextlib.suppress(OSError):  # not there, or a name the filesystem rejects
         os.remove(path)
 
 
@@ -399,6 +428,7 @@ def batch_export(
     skip_existing=False,
     dry_run=False,
     timeout=None,
+    name_template=None,
 ):
     """
     Perform batch export of files based on parameter sets.
@@ -425,6 +455,11 @@ def batch_export(
             each result carries the command it would have run.
         timeout (float or None): Seconds allowed per case; a case that exceeds it is
             killed and reported as a failure with ``timed_out`` set. The batch continues.
+        name_template (str or None): ``str.format`` template for output file names with
+            ``{name}``, ``{index}`` and every parameter as fields (see
+            :func:`openscad_export.params.output_name`). Names are made filesystem-safe
+            either way, and two cases producing the same name is an error before
+            anything runs.
 
     Customizer JSON parameter sets are passed to OpenSCAD with ``-p FILE -P SET`` when
     the engine supports it (2019.05+); CSV rows are passed as ``-D`` flags. A case never
@@ -442,7 +477,8 @@ def batch_export(
     Raises:
         OpenSCADError: If no usable OpenSCAD executable is found.
         ValueError: If the parameter file format, the selection string, an image
-            option, or ``jobs`` is invalid.
+            option, ``jobs``, the name template, or the resulting names (duplicates)
+            are invalid.
     """
     if sequential:
         jobs = 1
@@ -475,8 +511,6 @@ def batch_export(
     if unknown:
         raise ValueError(f"Unknown image option(s): {', '.join(sorted(unknown))}")
     parameters = read_parameters(parameter_file)
-    if not dry_run:
-        ensure_output_folder(output_folder)
 
     # Customizer JSON goes to OpenSCAD natively (-p FILE -P SET) when the engine can
     # take it, so values are typed by the model's own defaults and unset keys keep
@@ -493,8 +527,17 @@ def batch_export(
         log.info("Selected parameter set indices: %s", sorted(selected))
         cases = [(idx, params) for idx, params in cases if idx in selected]
 
+    names = {idx: output_name(params, idx, name_template) for idx, params in cases}
+    for idx, params in cases:
+        raw = params.get("exported_filename")
+        if name_template is None and raw is not None and names[idx] != str(raw):
+            log.warning("Output name %r is not a safe file name; using %r.", raw, names[idx])
+    _reject_duplicate_names(names)
+    if not dry_run:
+        ensure_output_folder(output_folder)
+
     def process_export(idx, param_set, fmt):
-        filename = param_set.get("exported_filename", f"model_{idx}")
+        filename = names[idx]
         output_file = os.path.join(output_folder, f"{filename}.{fmt}")
         try:
             if use_parameter_sets:
@@ -507,32 +550,31 @@ def batch_export(
             stl_flavour = export_format if fmt == "stl" else None
             if skip_existing and os.path.exists(output_file):
                 log.info("Skipped (already present): %s", output_file)
-                return (idx, formats.index(fmt)), ExportResult(
-                    filename, output_file, True, None, "", 0.0, fmt, skipped=True
-                )
-            if dry_run:
+                result = ExportResult(filename, output_file, True, None, "", 0.0, fmt, skipped=True)
+            elif dry_run:
                 command = build_command(
                     engine.path, scad_file, output_file, stl_flavour, param_args, extra_args
                 )
                 log.info("Would run: %s", format_command(command))
-                return (idx, formats.index(fmt)), ExportResult(
+                result = ExportResult(
                     filename, output_file, True, None, "", 0.0, fmt, command=command
                 )
-            result = export_stl(
-                engine.path,
-                scad_file,
-                output_file,
-                stl_flavour,
-                param_args,
-                extra_args,
-                timeout=timeout,
-            )
+            else:
+                result = export_stl(
+                    engine.path,
+                    scad_file,
+                    output_file,
+                    stl_flavour,
+                    param_args,
+                    extra_args,
+                    timeout=timeout,
+                )
         for line in result.warnings:
-            level = (
-                logging.WARNING if line.startswith(("WARNING:", "DEPRECATED:")) else logging.INFO
-            )
+            level = logging.INFO if line.startswith(_CHATTER_PREFIXES) else logging.WARNING
             log.log(level, "%s: %s", result.output_path, line)
-        if result.ok:
+        if result.skipped or (result.ok and dry_run):
+            pass  # already logged as skipped / "Would run"
+        elif result.ok:
             log.info("Exported: %s in %.2f seconds.", result.output_path, result.duration)
         elif _active.closed:
             log.debug("Terminated: %s", result.output_path)
@@ -545,6 +587,8 @@ def batch_export(
                 result.stderr,
                 result.duration,
             )
+        result.index = idx
+        result.set_name = param_set.get("exported_filename")
         return (idx, formats.index(fmt)), result
 
     tasks = [(idx, params, fmt) for idx, params in cases for fmt in formats]
@@ -570,6 +614,7 @@ def batch_export(
         "jobs": jobs,
         "skip_existing": skip_existing,
         "timeout": timeout,
+        "name_template": name_template,
         "image_options": {k: v for k, v in (image_options or {}).items() if v},
     }
     return BatchResult(

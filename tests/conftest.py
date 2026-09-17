@@ -82,6 +82,9 @@ FAKE_OPENSCAD = textwrap.dedent(
     if "-Dfail=true" in param_args:
         sys.stderr.write("boom: fail requested\\n")
         sys.exit(1)
+    if os.environ.get("FAKE_OPENSCAD_NO_OUTPUT"):
+        sys.stderr.write(f"Can't open file \\"{out}\\" for export\\n")
+        sys.exit(0)  # the real engine exits 0 here
     with open(out, "w") as f:
         f.write("\\n".join(param_args))
     """

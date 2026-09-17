@@ -27,6 +27,9 @@ SCAD = "model.scad"
         ("nul", "nul_"),
         ("COM1", "COM1_"),
         ("COM10", "COM10"),  # only COM1-9 are reserved
+        ("con.txt", "con.txt_"),  # Windows treats NUL.txt as the device too
+        ("L" * 300, "L" * 200),  # cut to leave room for .part and an extension
+        ("é" * 150, "é" * 100),  # by UTF-8 bytes, at a character boundary
         ("", "fallback"),
         ("///", "___"),
         (" . ", "fallback"),
@@ -68,9 +71,20 @@ def test_name_template_with_unknown_field_names_it_and_lists_the_fields():
         output_name({"exported_filename": "lid", "d": 1, "h": 2}, 0, "{name}_{diameter}")
 
 
-def test_name_template_with_bad_format_spec_is_a_value_error():
+@pytest.mark.parametrize(
+    "template",
+    ["{d:03d}", "{name[zz]}", "{d.__class__.__init__.__globals__}", "{0}", "{", "{name!x}"],
+)
+def test_template_mistakes_are_always_value_errors(template):
     with pytest.raises(ValueError, match="could not be filled"):
-        output_name({"d": "x"}, 0, "{d:03d}")
+        output_name({"exported_filename": "lid", "d": "x"}, 0, template)
+
+
+def test_template_attribute_access_cannot_call_anything():
+    # str.format allows attribute and index reads but never calls; the worst case is a
+    # long, odd, but harmless name
+    name = output_name({"exported_filename": "lid"}, 0, "{name.__class__.__name__}")
+    assert name == "str"
 
 
 # --- through batch_export -----------------------------------------------------------
@@ -133,6 +147,17 @@ def test_duplicate_names_are_refused_before_anything_runs(fake_openscad, tmp_pat
 
     assert not out.exists()
     assert list(tmp_path.glob("probe.log.*")) == []
+
+
+def test_names_differing_only_by_case_are_duplicates(fake_openscad, tmp_path):
+    """Windows and macOS file systems are case-insensitive; Lid and lid are one file."""
+    csv = tmp_path / "p.csv"
+    csv.write_text("exported_filename,d\nLid,1\nlid,2\n")
+
+    with pytest.raises(
+        ValueError, match="Duplicate output names: 'Lid' / 'lid' from parameter sets 0, 1"
+    ):
+        run(fake_openscad, str(csv), tmp_path / "o")
 
 
 def test_names_that_collide_only_after_sanitising_are_duplicates_too(fake_openscad, tmp_path):
@@ -200,3 +225,33 @@ def test_cli_duplicate_names_are_a_clean_error(fake_openscad, tmp_path, capsys):
     assert code == 1
     err = capsys.readouterr().err
     assert err.startswith("Error: Duplicate output names") and "{name}_{index}" in err
+
+
+def test_json_record_keeps_index_and_original_set_name(fake_openscad, tmp_path):
+    sets = tmp_path / "sets.json"
+    sets.write_text('{"parameterSets": {"lid/large": {"d": "10"}}}')
+
+    doc = run(fake_openscad, str(sets), tmp_path / "o", formats=["stl", "png"]).to_dict()
+
+    assert [(r["index"], r["set_name"], r["name"]) for r in doc["results"]] == [
+        (0, "lid/large", "lid_large"),
+        (0, "lid/large", "lid_large"),
+    ]
+    csv = tmp_path / "p.csv"
+    csv.write_text("d\n1\n")
+    (case,) = run(fake_openscad, str(csv), tmp_path / "o2").to_dict()["results"]
+    assert (case["index"], case["set_name"], case["name"]) == (0, None, "model_0")
+
+
+def test_exit_zero_without_an_output_file_is_a_failure(fake_openscad, tmp_path, monkeypatch):
+    """OpenSCAD exits 0 for "Can't open file" on a path it cannot write."""
+    csv = tmp_path / "p.csv"
+    csv.write_text("exported_filename,d\nghost,1\n")
+    monkeypatch.setenv("FAKE_OPENSCAD_NO_OUTPUT", "1")
+
+    result = run(fake_openscad, str(csv), tmp_path / "o")
+
+    (case,) = result.results
+    assert case.ok is False and case.returncode == 0
+    assert case.stderr.startswith("Can't open file")  # OpenSCAD's own message is kept
+    assert list((tmp_path / "o").iterdir()) == []

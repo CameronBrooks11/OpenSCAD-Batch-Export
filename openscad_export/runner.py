@@ -89,6 +89,10 @@ class ExportResult:
     """OpenSCAD's message lines from stderr (WARNING:, ECHO:, ERROR:, DEPRECATED:, ...)."""
     timed_out: bool = False
     """True when OpenSCAD was killed for exceeding the per-case timeout."""
+    index: int | None = None
+    """Position of the parameter set in the input file."""
+    set_name: str | None = None
+    """The parameter set's own name (Customizer set name or exported_filename), unsanitised."""
 
     @property
     def status(self):
@@ -146,6 +150,8 @@ class BatchResult:
             },
             "results": [
                 {
+                    "index": r.index,
+                    "set_name": r.set_name,
                     "name": r.name,
                     "output_path": r.output_path,
                     "format": r.format,
@@ -290,13 +296,16 @@ def export_stl(
     stderr = stderr_bytes.decode(errors="replace").strip()
     warnings = [line for line in stderr.splitlines() if line.startswith(_DIAGNOSTIC_PREFIXES)]
     returncode = proc.returncode
-    ok = returncode == 0  # a killed process never exits 0
-    if ok and os.path.exists(partial):
+    ok = returncode == 0 and os.path.exists(partial)  # a killed process never exits 0
+    if ok:
         os.replace(partial, output_file)
     else:
         _remove_quietly(partial)
     if timed_out:
         stderr = f"Timed out after {timeout:g} s"
+    elif returncode == 0:
+        # OpenSCAD exits 0 for e.g. "Can't open file" on an unwritable path.
+        stderr = stderr or "OpenSCAD exited 0 but wrote no output file"
     return ExportResult(
         name=name,
         output_path=output_file,
@@ -372,15 +381,17 @@ def _signal_tree(proc, kill):
 
 
 def _reject_duplicate_names(names):
-    """names: {case index: output name}. Two cases writing the same file would race."""
+    """names: {case index: output name}. Two cases writing the same file would race.
+    Compared case-insensitively, since Windows and macOS file systems are."""
     by_name = {}
     for idx, name in names.items():
-        by_name.setdefault(name, []).append(idx)
-    clashes = {name: idxs for name, idxs in by_name.items() if len(idxs) > 1}
+        by_name.setdefault(name.casefold(), []).append(idx)
+    clashes = {key: idxs for key, idxs in by_name.items() if len(idxs) > 1}
     if clashes:
         detail = "; ".join(
-            f"{name!r} from parameter sets {', '.join(map(str, idxs))}"
-            for name, idxs in clashes.items()
+            f"{' / '.join(map(repr, dict.fromkeys(names[i] for i in idxs)))} from parameter sets "
+            f"{', '.join(map(str, idxs))}"
+            for idxs in clashes.values()
         )
         raise ValueError(
             f"Duplicate output names: {detail}. Give the sets distinct names, or use a "
@@ -396,7 +407,7 @@ def _tool_version():
 
 
 def _remove_quietly(path):
-    with contextlib.suppress(FileNotFoundError):
+    with contextlib.suppress(OSError):  # not there, or a name the filesystem rejects
         os.remove(path)
 
 
@@ -539,32 +550,31 @@ def batch_export(
             stl_flavour = export_format if fmt == "stl" else None
             if skip_existing and os.path.exists(output_file):
                 log.info("Skipped (already present): %s", output_file)
-                return (idx, formats.index(fmt)), ExportResult(
-                    filename, output_file, True, None, "", 0.0, fmt, skipped=True
-                )
-            if dry_run:
+                result = ExportResult(filename, output_file, True, None, "", 0.0, fmt, skipped=True)
+            elif dry_run:
                 command = build_command(
                     engine.path, scad_file, output_file, stl_flavour, param_args, extra_args
                 )
                 log.info("Would run: %s", format_command(command))
-                return (idx, formats.index(fmt)), ExportResult(
+                result = ExportResult(
                     filename, output_file, True, None, "", 0.0, fmt, command=command
                 )
-            result = export_stl(
-                engine.path,
-                scad_file,
-                output_file,
-                stl_flavour,
-                param_args,
-                extra_args,
-                timeout=timeout,
-            )
+            else:
+                result = export_stl(
+                    engine.path,
+                    scad_file,
+                    output_file,
+                    stl_flavour,
+                    param_args,
+                    extra_args,
+                    timeout=timeout,
+                )
         for line in result.warnings:
-            level = (
-                logging.WARNING if line.startswith(("WARNING:", "DEPRECATED:")) else logging.INFO
-            )
+            level = logging.INFO if line.startswith(_CHATTER_PREFIXES) else logging.WARNING
             log.log(level, "%s: %s", result.output_path, line)
-        if result.ok:
+        if result.skipped or (result.ok and dry_run):
+            pass  # already logged as skipped / "Would run"
+        elif result.ok:
             log.info("Exported: %s in %.2f seconds.", result.output_path, result.duration)
         elif _active.closed:
             log.debug("Terminated: %s", result.output_path)
@@ -577,6 +587,8 @@ def batch_export(
                 result.stderr,
                 result.duration,
             )
+        result.index = idx
+        result.set_name = param_set.get("exported_filename")
         return (idx, formats.index(fmt)), result
 
     tasks = [(idx, params, fmt) for idx, params in cases for fmt in formats]

@@ -193,7 +193,7 @@ openscad-export json2csv examples/sign/sign.json examples/sign/sign_converted.cs
 
 - The CSV file should have a header row with parameter names.
 - Each subsequent row defines a set of parameters for the OpenSCAD model.
-- A column named `exported_filename` is required to specify the output filenames.
+- An `exported_filename` column names the output files; without it files are named `model_<index>`, or use `--name-template`. Names are made filesystem-safe automatically.
 
 **Example CSV file (`simpleCube.csv`):**
 

@@ -62,15 +62,22 @@ _WINDOWS_RESERVED = {"CON", "PRN", "AUX", "NUL"} | {
 }
 
 
+# Filesystems cap a name at 255 bytes; leave room for ".part", a dot and an extension.
+MAX_NAME_BYTES = 200
+
+
 def sanitize_filename(name, fallback):
     """
     Make ``name`` safe to use as a file name on any platform: unsafe characters become
-    ``_``, surrounding whitespace and dots are dropped, Windows reserved device names get
-    a trailing ``_``, and an empty result falls back to ``fallback``.
+    ``_``, surrounding whitespace and dots are dropped, Windows reserved device names
+    (``CON``, ``NUL.txt``, ...) get a trailing ``_``, the name is cut to
+    ``MAX_NAME_BYTES`` of UTF-8, and an empty result falls back to ``fallback``.
     """
     safe = _UNSAFE_CHARS.sub("_", str(name)).strip(" .")
-    if safe.upper() in _WINDOWS_RESERVED:
+    if safe.split(".", 1)[0].upper() in _WINDOWS_RESERVED:
         safe += "_"
+    while len(safe.encode("utf-8")) > MAX_NAME_BYTES:
+        safe = safe[:-1]
     return safe or fallback
 
 
@@ -96,7 +103,7 @@ def output_name(param_set, index, template=None):
         fields.update(name=default, index=index)
         try:
             raw = template.format(**fields)
-        except (KeyError, IndexError, ValueError) as e:
+        except (KeyError, IndexError, ValueError, TypeError, AttributeError) as e:
             raise ValueError(
                 f"Name template {template!r} could not be filled for parameter set {index}"
                 f" ({e.__class__.__name__}: {e}); available fields: "

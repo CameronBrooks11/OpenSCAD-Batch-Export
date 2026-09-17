@@ -20,6 +20,7 @@ from openscad_export.engine import Engine, detect_engine
 from openscad_export.params import (
     construct_d_flags,
     is_parameter_set_file,
+    output_name,
     parse_selection,
     read_parameters,
 )
@@ -370,6 +371,23 @@ def _signal_tree(proc, kill):
             os.killpg(pgid, sig)
 
 
+def _reject_duplicate_names(names):
+    """names: {case index: output name}. Two cases writing the same file would race."""
+    by_name = {}
+    for idx, name in names.items():
+        by_name.setdefault(name, []).append(idx)
+    clashes = {name: idxs for name, idxs in by_name.items() if len(idxs) > 1}
+    if clashes:
+        detail = "; ".join(
+            f"{name!r} from parameter sets {', '.join(map(str, idxs))}"
+            for name, idxs in clashes.items()
+        )
+        raise ValueError(
+            f"Duplicate output names: {detail}. Give the sets distinct names, or use a "
+            "name template such as '{name}_{index}'."
+        )
+
+
 def _tool_version():
     try:
         return metadata.version("openscad-batch-export")
@@ -399,6 +417,7 @@ def batch_export(
     skip_existing=False,
     dry_run=False,
     timeout=None,
+    name_template=None,
 ):
     """
     Perform batch export of files based on parameter sets.
@@ -425,6 +444,11 @@ def batch_export(
             each result carries the command it would have run.
         timeout (float or None): Seconds allowed per case; a case that exceeds it is
             killed and reported as a failure with ``timed_out`` set. The batch continues.
+        name_template (str or None): ``str.format`` template for output file names with
+            ``{name}``, ``{index}`` and every parameter as fields (see
+            :func:`openscad_export.params.output_name`). Names are made filesystem-safe
+            either way, and two cases producing the same name is an error before
+            anything runs.
 
     Customizer JSON parameter sets are passed to OpenSCAD with ``-p FILE -P SET`` when
     the engine supports it (2019.05+); CSV rows are passed as ``-D`` flags. A case never
@@ -442,7 +466,8 @@ def batch_export(
     Raises:
         OpenSCADError: If no usable OpenSCAD executable is found.
         ValueError: If the parameter file format, the selection string, an image
-            option, or ``jobs`` is invalid.
+            option, ``jobs``, the name template, or the resulting names (duplicates)
+            are invalid.
     """
     if sequential:
         jobs = 1
@@ -475,8 +500,6 @@ def batch_export(
     if unknown:
         raise ValueError(f"Unknown image option(s): {', '.join(sorted(unknown))}")
     parameters = read_parameters(parameter_file)
-    if not dry_run:
-        ensure_output_folder(output_folder)
 
     # Customizer JSON goes to OpenSCAD natively (-p FILE -P SET) when the engine can
     # take it, so values are typed by the model's own defaults and unset keys keep
@@ -493,8 +516,17 @@ def batch_export(
         log.info("Selected parameter set indices: %s", sorted(selected))
         cases = [(idx, params) for idx, params in cases if idx in selected]
 
+    names = {idx: output_name(params, idx, name_template) for idx, params in cases}
+    for idx, params in cases:
+        raw = params.get("exported_filename")
+        if name_template is None and raw is not None and names[idx] != str(raw):
+            log.warning("Output name %r is not a safe file name; using %r.", raw, names[idx])
+    _reject_duplicate_names(names)
+    if not dry_run:
+        ensure_output_folder(output_folder)
+
     def process_export(idx, param_set, fmt):
-        filename = param_set.get("exported_filename", f"model_{idx}")
+        filename = names[idx]
         output_file = os.path.join(output_folder, f"{filename}.{fmt}")
         try:
             if use_parameter_sets:
@@ -570,6 +602,7 @@ def batch_export(
         "jobs": jobs,
         "skip_existing": skip_existing,
         "timeout": timeout,
+        "name_template": name_template,
         "image_options": {k: v for k, v in (image_options or {}).items() if v},
     }
     return BatchResult(

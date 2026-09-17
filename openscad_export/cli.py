@@ -122,6 +122,15 @@ def parse_arguments(argv=None):
         help="Skip a case whose output file already exists.",
     )
     export_parser.add_argument(
+        "--name-template",
+        metavar="TEMPLATE",
+        help=(
+            "How to name output files (without extension). Fields: {name} (the set name or "
+            "exported_filename, else model_<index>), {index}, and any parameter, e.g. "
+            "'{name}_d{diameter}' or 'part_{index:03d}'. Names are made filesystem-safe."
+        ),
+    )
+    export_parser.add_argument(
         "-n",
         "--dry-run",
         action="store_true",
@@ -208,6 +217,7 @@ def _run(args):
                 skip_existing=args.skip_existing,
                 dry_run=args.dry_run,
                 timeout=args.timeout,
+                name_template=args.name_template,
             )
         except (OpenSCADError, ValueError) as e:
             print(f"Error: {e}", file=sys.stderr)

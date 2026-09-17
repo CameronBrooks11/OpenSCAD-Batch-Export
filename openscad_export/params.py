@@ -54,6 +54,57 @@ def is_parameter_set_file(parameter_file):
     return os.path.splitext(str(parameter_file))[1].lower() == ".json"
 
 
+# Characters no common filesystem accepts in a name (the Windows set, which includes the
+# POSIX separator), plus control characters.
+_UNSAFE_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+_WINDOWS_RESERVED = {"CON", "PRN", "AUX", "NUL"} | {
+    f"{d}{n}" for d in ("COM", "LPT") for n in range(1, 10)
+}
+
+
+def sanitize_filename(name, fallback):
+    """
+    Make ``name`` safe to use as a file name on any platform: unsafe characters become
+    ``_``, surrounding whitespace and dots are dropped, Windows reserved device names get
+    a trailing ``_``, and an empty result falls back to ``fallback``.
+    """
+    safe = _UNSAFE_CHARS.sub("_", str(name)).strip(" .")
+    if safe.upper() in _WINDOWS_RESERVED:
+        safe += "_"
+    return safe or fallback
+
+
+def output_name(param_set, index, template=None):
+    """
+    The file name (without extension) for one parameter set.
+
+    Without a template: the set's ``exported_filename`` (the Customizer set name for JSON
+    input), or ``model_<index>``. With a template, ``str.format`` fields are filled from
+    ``{name}`` (the same default), ``{index}`` and every parameter, e.g.
+    ``"{name}_d{diameter}"`` or ``"part_{index:03d}"``.
+
+    The result is passed through :func:`sanitize_filename`.
+
+    Raises:
+        ValueError: If the template names a field the parameter set does not have.
+    """
+    default = str(param_set.get("exported_filename", f"model_{index}"))
+    if template is None:
+        raw = default
+    else:
+        fields = {k: v for k, v in param_set.items() if k != "exported_filename"}
+        fields.update(name=default, index=index)
+        try:
+            raw = template.format(**fields)
+        except (KeyError, IndexError, ValueError) as e:
+            raise ValueError(
+                f"Name template {template!r} could not be filled for parameter set {index}"
+                f" ({e.__class__.__name__}: {e}); available fields: "
+                f"{', '.join(sorted(fields))}"
+            ) from e
+    return sanitize_filename(raw, f"model_{index}")
+
+
 def read_parameters(parameter_file):
     """
     Read parameter sets from a CSV or JSON file, chosen by extension.

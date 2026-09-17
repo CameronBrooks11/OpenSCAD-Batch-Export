@@ -315,3 +315,20 @@ def test_timeout_kills_a_slow_render_and_leaves_nothing_behind(tmp_path):
     assert "big.stl: Timed out after 1 s" in result.stdout
     assert "Successful exports: 1" in result.stdout  # the batch continued to the small case
     assert sorted(p.name for p in out.iterdir()) == ["small.stl"]  # no partial, no .part
+
+
+def test_unsafe_set_name_is_sanitised_but_still_selects_the_right_set(tmp_path):
+    """A Customizer set called "lid/large" must not become a subdirectory, and the
+    original name must still reach -P: OpenSCAD silently exports the defaults for an
+    unknown set name, so the geometry proves the parameters applied."""
+    scad = tmp_path / "m.scad"
+    scad.write_text("size = 1;\ncube(size);\n")
+    sets = tmp_path / "sets.json"
+    sets.write_text('{"parameterSets": {"lid/large": {"size": "30"}}}')
+
+    result = run_cli("export", scad, sets, tmp_path / "out")
+
+    assert result.returncode == 0, result.stdout
+    assert sorted(p.name for p in (tmp_path / "out").iterdir()) == ["lid_large.stl"]
+    assert read_stl(tmp_path / "out" / "lid_large.stl") == (12, pytest.approx(30))
+    assert "not a safe file name" in result.stdout

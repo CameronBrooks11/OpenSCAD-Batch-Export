@@ -332,3 +332,28 @@ def test_unsafe_set_name_is_sanitised_but_still_selects_the_right_set(tmp_path):
     assert sorted(p.name for p in (tmp_path / "out").iterdir()) == ["lid_large.stl"]
     assert read_stl(tmp_path / "out" / "lid_large.stl") == (12, pytest.approx(30))
     assert "not a safe file name" in result.stdout
+
+
+def test_converted_vectors_reach_openscad_as_literals(tmp_path):
+    """csv2json stores a vector as an OpenSCAD literal in a string, because -p/-P
+    silently ignores a JSON array and keeps the model's default."""
+    scad = tmp_path / "m.scad"
+    scad.write_text('pts = [0, 0];\nassert(pts == [3, 4], str("pts=", pts));\ncube(1);\n')
+    params = tmp_path / "p.csv"
+    params.write_text('exported_filename,pts\nrow,"[3, 4]"\n')
+    sets = tmp_path / "sets.json"
+    assert run_cli("csv2json", params, sets).returncode == 0
+
+    result = run_cli("export", scad, sets, tmp_path / "out")
+
+    assert result.returncode == 0, result.stdout
+    assert (tmp_path / "out" / "row.stl").exists()
+
+    # the same set written as a JSON array is ignored by OpenSCAD, which is why it is not
+    arr = tmp_path / "arr.json"
+    arr.write_text('{"parameterSets": {"row": {"pts": [3, 4]}}}')
+
+    ignored = run_cli("export", scad, arr, tmp_path / "out2")
+
+    assert ignored.returncode == 1
+    assert "pts=[0, 0]" in ignored.stdout

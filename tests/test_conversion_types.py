@@ -2,6 +2,7 @@
 
 import csv
 import json
+import logging
 
 import pytest
 
@@ -60,6 +61,58 @@ def test_vectors_are_stored_as_strings_not_json_arrays(tmp_path):
 
     assert isinstance(stored, str)
     assert coerce_cell(stored) == [1, 2]
+
+
+@pytest.mark.parametrize(
+    "cell",
+    ["[[1, 2]]", "[0:2:10]", "undef", '["a", "b"]', "[true, false]"],
+    ids=["nested", "range", "undef", "string-vector", "bool-vector"],
+)
+def test_value_kinds_openscad_ignores_in_a_parameter_set_are_warned_about(tmp_path, cell, caplog):
+    """Only a flat numeric vector survives the literal-in-a-string encoding; for the rest
+    OpenSCAD silently keeps the model's default, so the conversion must say so."""
+    with caplog.at_level(logging.WARNING, logger="openscad_export"):
+        stored = convert(tmp_path, {"v": cell})["v"]
+
+    assert isinstance(stored, str)
+    assert "OpenSCAD ignores" in caplog.text and "'v'" in caplog.text
+    assert "keep the model's default" in caplog.text
+
+
+@pytest.mark.parametrize("cell", ["[1, 2]", "[3]", "[1.5, -2, 0]"])
+def test_flat_numeric_vectors_are_not_warned_about(tmp_path, cell, caplog):
+    with caplog.at_level(logging.WARNING, logger="openscad_export"):
+        convert(tmp_path, {"v": cell})
+
+    assert "OpenSCAD ignores" not in caplog.text
+
+
+def test_a_cell_that_cannot_be_read_names_the_row_and_column(tmp_path):
+    src = tmp_path / "p.csv"
+    src.write_text("exported_filename,label\nfirst,ok\nsecond,[draft]\n")
+
+    with pytest.raises(ValueError, match=r"Row 1, column 'label': Invalid vector"):
+        csv_to_json(src, tmp_path / "p.json")
+
+
+def test_duplicate_row_names_are_refused_instead_of_dropping_a_row(tmp_path):
+    """A parameter-set file holds one set per name, so two rows called the same thing
+    would silently become one; the exporter refuses them too."""
+    src = tmp_path / "p.csv"
+    src.write_text("exported_filename,d\nsame,10\nsame,20\nother,30\n")
+
+    with pytest.raises(ValueError, match=r"Duplicate parameter set name 'same'"):
+        csv_to_json(src, tmp_path / "p.json")
+
+
+def test_blank_names_fall_back_to_the_index_like_the_exporter(tmp_path):
+    src = tmp_path / "p.csv"
+    src.write_text("exported_filename,d\n,1\n,2\n")
+    out = tmp_path / "p.json"
+
+    csv_to_json(src, out)
+
+    assert list(json.loads(out.read_text())["parameterSets"]) == ["model_0", "model_1"]
 
 
 def test_json_to_csv_writes_cells_the_exporter_can_read_back(tmp_path):
@@ -126,3 +179,31 @@ def test_unnamed_rows_get_the_index_the_exporter_uses(tmp_path):
     csv_to_json(src, out)
 
     assert list(json.loads(out.read_text())["parameterSets"]) == ["model_0", "model_1", "model_2"]
+
+
+def test_cli_reports_a_bad_cell_without_a_traceback(tmp_path, capsys):
+    from openscad_export.cli import main
+
+    src = tmp_path / "p.csv"
+    src.write_text("exported_filename,label\nrow,[draft]\n")
+
+    code = main(["csv2json", str(src), str(tmp_path / "p.json")])
+
+    captured = capsys.readouterr()
+    assert code == 1
+    assert captured.err.startswith("Error: Row 0, column 'label'")
+    assert "Traceback" not in captured.err
+
+
+def test_cli_reports_an_unserialisable_json_value_without_a_traceback(tmp_path, capsys):
+    from openscad_export.cli import main
+
+    src = tmp_path / "p.json"
+    src.write_text('{"parameterSets": {"row": {"nested": {"a": 1}}}}')
+
+    code = main(["json2csv", str(src), str(tmp_path / "p.csv")])
+
+    captured = capsys.readouterr()
+    assert code == 1
+    assert captured.err.startswith("Error: Cannot serialize dict")
+    assert "Traceback" not in captured.err

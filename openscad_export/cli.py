@@ -231,10 +231,15 @@ def _run(args):
             result.write_summary(args.summary)
             print(f"Summary written to {args.summary}")
         return 1 if result.failures else 0
-    if args.command == "csv2json":
-        csv_to_json(args.csv_file, args.json_file)
-    elif args.command == "json2csv":
-        json_to_csv(args.json_file, args.csv_file)
+    if args.command in ("csv2json", "json2csv"):
+        try:
+            if args.command == "csv2json":
+                csv_to_json(args.csv_file, args.json_file)
+            else:
+                json_to_csv(args.json_file, args.csv_file)
+        except (ValueError, TypeError) as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return 1
     elif args.command == "gui":
         try:
             from . import gui  # Relative import

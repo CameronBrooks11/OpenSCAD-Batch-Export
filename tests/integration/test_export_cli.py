@@ -3,6 +3,7 @@
 Skipped as a whole when `openscad` is not on PATH.
 """
 
+import json
 import os
 import shutil
 import struct
@@ -334,9 +335,10 @@ def test_unsafe_set_name_is_sanitised_but_still_selects_the_right_set(tmp_path):
     assert "not a safe file name" in result.stdout
 
 
-def test_converted_vectors_reach_openscad_as_literals(tmp_path):
+def test_converted_flat_numeric_vectors_reach_openscad_as_literals(tmp_path):
     """csv2json stores a vector as an OpenSCAD literal in a string, because -p/-P
-    silently ignores a JSON array and keeps the model's default."""
+    ignores a JSON array outright. Only a flat numeric vector survives even that; the
+    kinds that do not are warned about at conversion time (see test_conversion_types)."""
     scad = tmp_path / "m.scad"
     scad.write_text('pts = [0, 0];\nassert(pts == [3, 4], str("pts=", pts));\ncube(1);\n')
     params = tmp_path / "p.csv"
@@ -357,3 +359,39 @@ def test_converted_vectors_reach_openscad_as_literals(tmp_path):
 
     assert ignored.returncode == 1
     assert "pts=[0, 0]" in ignored.stdout
+
+
+def test_parameter_set_files_ignore_the_value_kinds_the_converter_warns_about(tmp_path):
+    """Pins the engine behaviour the csv2json warning is based on: through -p/-P a nested
+    vector, a range, undef and a vector of strings all keep the model's default."""
+    scad = tmp_path / "m.scad"
+    scad.write_text(
+        'nested = [[0, 0]];\nrng = [0:1];\nmaybe = 1;\nstrvec = ["x"];\nflat = [0, 0];\n'
+        "echo(nested = nested, rng = rng, maybe = maybe, strvec = strvec, flat = flat);\ncube(1);\n"
+    )
+    sets = tmp_path / "sets.json"
+    sets.write_text(
+        json.dumps(
+            {
+                "parameterSets": {
+                    "row": {
+                        "nested": "[[1, 2]]",
+                        "rng": "[0 : 2 : 10]",
+                        "maybe": "undef",
+                        "strvec": '["a", "b"]',
+                        "flat": "[3, 4]",
+                    }
+                }
+            }
+        )
+    )
+
+    result = run_cli("export", scad, sets, tmp_path / "out")
+
+    assert result.returncode == 0, result.stdout
+    echo = next(line for line in result.stdout.splitlines() if "ECHO:" in line)
+    assert "flat = [3, 4]" in echo  # the one kind that works
+    assert "nested = [[0, 0]]" in echo  # the rest keep the model's defaults
+    assert "rng = [0 : 1 : 1]" in echo
+    assert "maybe = 1" in echo
+    assert 'strvec = ["x"]' in echo

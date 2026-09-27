@@ -436,30 +436,63 @@ def csv_to_json(csv_file, json_file):
         csv_file (str): Path to the input CSV file.
         json_file (str): Path to the output JSON file.
     """
-    json_data = {"parameterSets": {}}
+    sets = {}
     for index, param_set in enumerate(read_csv(csv_file)):
-        exported_filename = param_set.get("exported_filename", f"model_{index}")
+        name = str(param_set.get("exported_filename") or f"model_{index}")
+        if name in sets:
+            raise ValueError(
+                f"Duplicate parameter set name {name!r} in {csv_file}: rows cannot share a "
+                "name, because a parameter-set file holds one set per name."
+            )
         params = {k: v for k, v in param_set.items() if k != "exported_filename"}
-        json_data["parameterSets"][exported_filename] = {
-            k: _json_value(coerce_cell(v) if isinstance(v, str) else v) for k, v in params.items()
-        }
+        sets[name] = {k: _json_value(_cell_value(v, k, index), k) for k, v in params.items()}
+    json_data = {"parameterSets": sets}
     json_data["fileFormatVersion"] = "1"
     with open(json_file, "w") as jf:
         json.dump(json_data, jf, indent=4)
     log.info("Converted %s to %s.", csv_file, json_file)
 
 
-def _json_value(value):
+def _json_value(value, key):
     """
     How a parameter value is stored in a Customizer JSON file.
 
-    Scalars keep their JSON type, which OpenSCAD reads. Vectors, ranges and undef are
-    written as the OpenSCAD literal in a string: OpenSCAD silently ignores a JSON array
-    and keeps the model's default, and the Customizer itself writes every value as text.
+    Scalars keep their JSON type, which OpenSCAD reads. Everything else is written as the
+    OpenSCAD literal in a string, because OpenSCAD ignores a JSON array outright.
+
+    Only a flat vector of numbers survives that encoding: through ``-p/-P`` OpenSCAD
+    silently keeps the model's default for a nested vector, a vector of strings, a range
+    or ``undef`` (measured on 2026.09.05), so those are warned about — the CSV file
+    itself, exported directly, does apply them.
     """
     if isinstance(value, (bool, int, float, str)):
         return value
-    return to_scad_literal(value)
+    literal = to_scad_literal(value)
+    if not _survives_parameter_sets(value):
+        log.warning(
+            "Parameter %r is %s, which OpenSCAD ignores in a parameter-set file; it will "
+            "keep the model's default. Export from the CSV file to apply it.",
+            key,
+            literal,
+        )
+    return literal
+
+
+def _cell_value(value, key, index):
+    """Interpret one CSV cell, naming the row and column if it cannot be read."""
+    if not isinstance(value, str):
+        return value
+    try:
+        return coerce_cell(value)
+    except ValueError as e:
+        raise ValueError(f"Row {index}, column {key!r}: {e}") from e
+
+
+def _survives_parameter_sets(value):
+    """True if OpenSCAD honours this value through ``-p FILE -P SET``."""
+    return isinstance(value, list) and all(
+        isinstance(item, (int, float)) and not isinstance(item, bool) for item in value
+    )
 
 
 def json_to_csv(json_file, csv_file):
@@ -490,9 +523,15 @@ def json_to_csv(json_file, csv_file):
 
 def _csv_cell(value):
     """
-    How a parameter value is written to a CSV cell, so that reading it back with
-    :func:`coerce_cell` yields the same value: bools lowercased, vectors, ranges and
-    undef as OpenSCAD literals, strings as themselves.
+    How a parameter value is written to a CSV cell: bools lowercased, vectors, ranges and
+    undef as OpenSCAD literals, numbers and strings as themselves.
+
+    Strings are written verbatim, not quote-wrapped, so a JSON string whose text reads as
+    something else (``"10"``, ``"true"``, ``"[1, 2]"``) becomes that other type when the
+    cell is read back. That is deliberate: the Customizer writes *every* value as a string,
+    so quoting them would turn every number in a real parameter-set file into a string.
+    Which of the two a JSON string means is the model's default to decide, and the file
+    does not record it.
     """
     if isinstance(value, str):
         return value

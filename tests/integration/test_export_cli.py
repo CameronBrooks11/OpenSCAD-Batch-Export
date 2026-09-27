@@ -3,6 +3,7 @@
 Skipped as a whole when `openscad` is not on PATH.
 """
 
+import json
 import os
 import shutil
 import struct
@@ -332,3 +333,81 @@ def test_unsafe_set_name_is_sanitised_but_still_selects_the_right_set(tmp_path):
     assert sorted(p.name for p in (tmp_path / "out").iterdir()) == ["lid_large.stl"]
     assert read_stl(tmp_path / "out" / "lid_large.stl") == (12, pytest.approx(30))
     assert "not a safe file name" in result.stdout
+
+
+def test_converted_flat_numeric_vectors_reach_openscad_as_literals(tmp_path):
+    """csv2json stores a vector as an OpenSCAD literal in a string, because -p/-P
+    ignores a JSON array outright. Only a flat numeric vector survives even that; the
+    kinds that do not are warned about at conversion time (see test_conversion_types)."""
+    scad = tmp_path / "m.scad"
+    scad.write_text('pts = [0, 0];\nassert(pts == [3, 4], str("pts=", pts));\ncube(1);\n')
+    params = tmp_path / "p.csv"
+    params.write_text('exported_filename,pts\nrow,"[3, 4]"\n')
+    sets = tmp_path / "sets.json"
+    assert run_cli("csv2json", params, sets).returncode == 0
+
+    result = run_cli("export", scad, sets, tmp_path / "out")
+
+    assert result.returncode == 0, result.stdout
+    assert (tmp_path / "out" / "row.stl").exists()
+
+    # the same set written as a JSON array is ignored by OpenSCAD, which is why it is not
+    arr = tmp_path / "arr.json"
+    arr.write_text('{"parameterSets": {"row": {"pts": [3, 4]}}}')
+
+    ignored = run_cli("export", scad, arr, tmp_path / "out2")
+
+    assert ignored.returncode == 1
+    assert "pts=[0, 0]" in ignored.stdout
+
+
+def test_parameter_set_files_ignore_the_value_kinds_the_converter_warns_about(tmp_path):
+    """Pins the engine behaviour the csv2json warning rests on. A nested vector and undef
+    are ignored by every engine measured; ranges and vectors of strings are applied by
+    2021.01 and ignored by current builds."""
+    scad = tmp_path / "m.scad"
+    scad.write_text(
+        'nested = [[0, 0]];\nrng = [0:1];\nmaybe = 1;\nstrvec = ["x"];\nflat = [0, 0];\n'
+        "echo(nested = nested, rng = rng, maybe = maybe, strvec = strvec, flat = flat);\ncube(1);\n"
+    )
+    sets = tmp_path / "sets.json"
+    sets.write_text(
+        json.dumps(
+            {
+                "parameterSets": {
+                    "row": {
+                        "nested": "[[1, 2]]",
+                        "rng": "[0 : 2 : 10]",
+                        "maybe": "undef",
+                        "strvec": '["a", "b"]',
+                        "flat": "[3, 4]",
+                    }
+                }
+            }
+        )
+    )
+
+    result = run_cli("export", scad, sets, tmp_path / "out")
+
+    assert result.returncode == 0, result.stdout
+    echo = next(line for line in result.stdout.splitlines() if "ECHO:" in line)
+    version = next(
+        line.split("version ")[1].split()[0]
+        for line in result.stdout.splitlines()
+        if "Using OpenSCAD version" in line
+    )
+
+    # true of every engine measured: a flat numeric vector applies, a nested vector and
+    # undef do not
+    assert "flat = [3, 4]" in echo
+    assert "nested = [[0, 0]]" in echo
+    assert "maybe = 1" in echo
+
+    # ranges and vectors of strings changed somewhere between 2021.01 and 2026.09: the
+    # older engine applies them, current builds keep the model's default
+    if int(version.split(".")[0]) <= 2021:
+        assert "rng = [0 : 2 : 10]" in echo
+        assert 'strvec = ["a", "b"]' in echo
+    else:
+        assert "rng = [0 : 1 : 1]" in echo
+        assert 'strvec = ["x"]' in echo

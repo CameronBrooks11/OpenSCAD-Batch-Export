@@ -436,38 +436,66 @@ def csv_to_json(csv_file, json_file):
         csv_file (str): Path to the input CSV file.
         json_file (str): Path to the output JSON file.
     """
-    parameters = read_csv(csv_file)
-    json_data = {"parameterSets": {}}
-    for param_set in parameters:
-        exported_filename = param_set.get(
-            "exported_filename", f"model_{parameters.index(param_set) + 1}"
-        )
-        # Remove exported_filename from the parameters
+    sets = {}
+    for index, param_set in enumerate(read_csv(csv_file)):
+        name = str(param_set.get("exported_filename") or f"model_{index}")
+        if name in sets:
+            raise ValueError(
+                f"Duplicate parameter set name {name!r} in {csv_file}: rows cannot share a "
+                "name, because a parameter-set file holds one set per name."
+            )
         params = {k: v for k, v in param_set.items() if k != "exported_filename"}
-        # Attempt to convert "true"/"false" to booleans
-        for k, v in params.items():
-            if isinstance(v, str):
-                lowered = v.lower()
-                if lowered == "true":
-                    params[k] = True
-                elif lowered == "false":
-                    params[k] = False
-                else:
-                    # Attempt to convert to int or float
-                    try:
-                        if "." in v:
-                            params[k] = float(v)
-                        else:
-                            params[k] = int(v)
-                    except ValueError:
-                        pass  # keep as string
-        json_data["parameterSets"][exported_filename] = params
-    # Add fileFormatVersion
+        sets[name] = {k: _json_value(_cell_value(v, k, index), k) for k, v in params.items()}
+    json_data = {"parameterSets": sets}
     json_data["fileFormatVersion"] = "1"
-    # Write to JSON file
     with open(json_file, "w") as jf:
         json.dump(json_data, jf, indent=4)
     log.info("Converted %s to %s.", csv_file, json_file)
+
+
+def _json_value(value, key):
+    """
+    How a parameter value is stored in a Customizer JSON file.
+
+    Scalars keep their JSON type, which OpenSCAD reads. Everything else is written as the
+    OpenSCAD literal in a string, because OpenSCAD ignores a JSON array outright.
+
+    Only a flat vector of numbers survives that encoding on every engine. Through
+    ``-p/-P``, OpenSCAD keeps the model's default for a nested vector or ``undef`` on both
+    2021.01 and 2026.09.05, and current builds also ignore a range and a vector of strings
+    that 2021.01 applies. All of those are warned about; exporting the CSV file directly
+    applies them.
+    """
+    if isinstance(value, (bool, int, float, str)):
+        return value
+    literal = to_scad_literal(value)
+    if not _survives_parameter_sets(value):
+        log.warning(
+            "Parameter %r is %s, which current OpenSCAD builds ignore in a parameter-set "
+            "file, keeping the model's default (2021.01 applies ranges and vectors of "
+            "strings; no build applies a nested vector or undef). Export from the CSV file "
+            "to apply it.",
+            key,
+            literal,
+        )
+    return literal
+
+
+def _cell_value(value, key, index):
+    """Interpret one CSV cell, naming the row and column if it cannot be read."""
+    if not isinstance(value, str):
+        return value
+    try:
+        return coerce_cell(value)
+    except ValueError as e:
+        raise ValueError(f"Row {index}, column {key!r}: {e}") from e
+
+
+def _survives_parameter_sets(value):
+    """True if OpenSCAD honours this value through ``-p FILE -P SET``."""
+    return isinstance(value, list) and all(
+        isinstance(item, (int, float)) and not isinstance(item, bool) for item in value
+    )
 
 
 def json_to_csv(json_file, csv_file):
@@ -491,11 +519,27 @@ def json_to_csv(json_file, csv_file):
         for param_set in parameter_sets:
             row = {"exported_filename": param_set.get("exported_filename", "model")}
             for key in all_keys - {"exported_filename"}:
-                value = param_set.get(key, "")
-                # Convert booleans to "true"/"false" strings
-                if isinstance(value, bool):
-                    row[key] = "true" if value else "false"
-                else:
-                    row[key] = value
+                row[key] = _csv_cell(param_set.get(key, ""))
             writer.writerow(row)
     log.info("Converted %s to %s.", json_file, csv_file)
+
+
+def _csv_cell(value):
+    """
+    How a parameter value is written to a CSV cell: bools lowercased, vectors, ranges and
+    undef as OpenSCAD literals, numbers and strings as themselves.
+
+    Strings are written verbatim, not quote-wrapped, so a JSON string whose text reads as
+    something else (``"10"``, ``"true"``, ``"[1, 2]"``) becomes that other type when the
+    cell is read back. That is deliberate: the Customizer writes *every* value as a string,
+    so quoting them would turn every number in a real parameter-set file into a string.
+    Which of the two a JSON string means is the model's default to decide, and the file
+    does not record it.
+    """
+    if isinstance(value, str):
+        return value
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return value
+    return to_scad_literal(value)

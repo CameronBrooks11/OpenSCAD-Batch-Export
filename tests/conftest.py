@@ -74,7 +74,7 @@ FAKE_OPENSCAD = textwrap.dedent(
     if "-p" in args:
         sets_file, set_name = args[args.index("-p") + 1], args[args.index("-P") + 1]
         param_args += ["-p", sets_file, "-P", set_name]
-        with open(sets_file) as f:
+        with open(sets_file, encoding="utf-8") as f:
             values = json.load(f)["parameterSets"][set_name]
         if str(values.get("fail", "")).lower() == "true":
             sys.stderr.write("boom: fail requested\\n")
@@ -85,7 +85,7 @@ FAKE_OPENSCAD = textwrap.dedent(
     if os.environ.get("FAKE_OPENSCAD_NO_OUTPUT"):
         sys.stderr.write(f"Can't open file \\"{out}\\" for export\\n")
         sys.exit(0)  # the real engine exits 0 here
-    with open(out, "w") as f:
+    with open(out, "w", encoding="utf-8") as f:
         f.write("\\n".join(param_args))
     """
 )

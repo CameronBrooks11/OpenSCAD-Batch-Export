@@ -21,6 +21,7 @@ from openscad_export.params import (
     DEFAULT_ENCODING,
     construct_d_flags,
     is_parameter_set_file,
+    is_utf8_encoding,
     output_name,
     parse_selection,
     read_parameters,
@@ -520,6 +521,15 @@ def batch_export(
     # take it, so values are typed by the model's own defaults and unset keys keep
     # them. CSV, and engines older than 2019.05, get the values as -D flags.
     use_parameter_sets = is_parameter_set_file(parameter_file) and engine.supports_parameter_sets
+    if use_parameter_sets and not is_utf8_encoding(encoding or DEFAULT_ENCODING):
+        # OpenSCAD opens the file itself here, always as UTF-8. It would reject the whole
+        # set, keep the model's defaults and still exit 0, so every case would look fine
+        # and export the wrong geometry.
+        raise ValueError(
+            f"OpenSCAD reads a parameter-set file as UTF-8 itself, so {encoding!r} cannot be "
+            f"honoured for {parameter_file}. Re-save it as UTF-8, or convert it with "
+            f"'json2csv --encoding {encoding}' and export the CSV instead."
+        )
     if use_parameter_sets:
         log.info("Passing parameter sets natively with -p/-P.")
     else:

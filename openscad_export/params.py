@@ -1,6 +1,7 @@
 """Parameter-set handling: reading CSV and Customizer JSON files, selecting subsets,
 serializing values as OpenSCAD -D flags, and converting between the two formats."""
 
+import codecs
 import csv
 import io
 import json
@@ -20,6 +21,25 @@ Reading with the locale's encoding instead would decode a set name or a string v
 differently on each machine — silently, on a Windows cp1252 locale. Files are always
 written as UTF-8 without a mark.
 """
+
+
+def normalize_encoding(name):
+    """
+    The canonical name of a codec, e.g. ``utf8`` -> ``utf-8``.
+
+    Raises:
+        ValueError: If Python has no such codec, rather than the LookupError that
+            :func:`codecs.lookup` raises, so callers report it like any bad argument.
+    """
+    try:
+        return codecs.lookup(name).name
+    except LookupError as e:
+        raise ValueError(f"Unknown encoding {name!r}: Python has no such codec.") from e
+
+
+def is_utf8_encoding(name):
+    """True if ``name`` is UTF-8, with or without a byte-order mark."""
+    return normalize_encoding(name) in ("utf-8", "utf-8-sig")
 
 
 def read_csv(csv_path, encoding=DEFAULT_ENCODING):
@@ -156,13 +176,15 @@ def read_parameters(parameter_file, encoding=DEFAULT_ENCODING):
 def _read_text(path, encoding):
     """Read a parameter file, reporting a wrong encoding in terms the user can act on
     rather than as a decoding error from deep in the stack."""
+    normalize_encoding(encoding)
     try:
         with open(path, encoding=encoding, newline="") as handle:
             return handle.read()
     except UnicodeDecodeError as e:
         raise ValueError(
             f"{path} is not valid {encoding} text ({e.reason} at byte {e.start}). Re-save it "
-            f"as UTF-8, or pass --encoding with the encoding it actually uses."
+            f"as UTF-8, or give the encoding it actually uses (--encoding on the command "
+            f"line, the encoding argument of the API)."
         ) from e
 
 

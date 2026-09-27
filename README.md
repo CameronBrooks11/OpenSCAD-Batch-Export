@@ -165,8 +165,10 @@ Convert a CSV parameter file to JSON format compatible with OpenSCAD's customize
 **Command Structure:**
 
 ```
-openscad-export csv2json <csv_file> <json_file>
+openscad-export csv2json <csv_file> <json_file> [--encoding NAME]
 ```
+
+Values are read with the same rules the exporter uses, so a cell means the same thing either way. A vector is stored as an OpenSCAD literal in a string, because OpenSCAD ignores a JSON array; nested vectors, ranges and `undef` are warned about, since current OpenSCAD builds ignore those in a parameter-set file and keep the model's default (export the CSV directly to apply them).
 
 **Example:**
 
@@ -181,7 +183,7 @@ Convert a JSON parameter file back to CSV format.
 **Command Structure:**
 
 ```
-openscad-export json2csv <json_file> <csv_file>
+openscad-export json2csv <json_file> <csv_file> [--encoding NAME]
 ```
 
 **Example:**
@@ -194,7 +196,8 @@ openscad-export json2csv examples/sign/sign.json examples/sign/sign_converted.cs
 
 - The CSV file should have a header row with parameter names.
 - Each subsequent row defines a set of parameters for the OpenSCAD model.
-- An `exported_filename` column names the output files; without it files are named `model_<index>`, or use `--name-template`. Names are made filesystem-safe automatically.
+- An `exported_filename` column names the output files; without it files are named `model_<index>`, or use `--name-template`. Names are made filesystem-safe automatically, and two rows may not share a name.
+- Files are read as UTF-8 (a byte-order mark is tolerated) and written as UTF-8. For a spreadsheet export in another encoding, pass `--encoding`; note that Excel's "Unicode text" export is UTF-16 **and tab-separated**, which this tool does not read — save as "CSV UTF-8" instead.
 
 **Example CSV file (`simpleCube.csv`):**
 

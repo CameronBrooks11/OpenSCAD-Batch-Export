@@ -117,7 +117,9 @@ def test_batch_export_reads_utf8_and_records_the_encoding(fake_openscad, tmp_pat
     result = batch_export(SCAD, str(src), str(out), fake_openscad, "binstl", None, True)
 
     assert [r.set_name for r in result.results] == [ACCENTED]
-    assert (out / f"{ACCENTED}.stl").read_text().splitlines()[-1] == '-Dlabel="café"'
+    assert (out / f"{ACCENTED}.stl").read_text(encoding="utf-8").splitlines()[-1] == (
+        '-Dlabel="café"'
+    )
     assert result.inputs["encoding"] == "utf-8-sig"
 
 
@@ -143,7 +145,7 @@ def test_cli_encoding_flag(fake_openscad, tmp_path, capsys):
         ]
     )
     assert ok == 0
-    assert (out / "row.stl").read_text().splitlines()[-1] == '-Dlabel="café"'
+    assert (out / "row.stl").read_text(encoding="utf-8").splitlines()[-1] == '-Dlabel="café"'
 
 
 def test_cli_conversion_encoding_flag(tmp_path, capsys):
@@ -214,3 +216,92 @@ def test_csv_is_written_as_utf8_whatever_the_locale(tmp_path):
 
     assert result.returncode == 0, result.stderr
     assert "café" in out.read_bytes().decode("utf-8")
+
+
+# --- the native -p/-P path: OpenSCAD reads the file, so we cannot decode it for it -------
+
+
+def test_a_non_utf8_parameter_set_file_is_refused_rather_than_exported_wrong(
+    fake_openscad, tmp_path
+):
+    """OpenSCAD opens the file itself for -p/-P, always as UTF-8: it would reject the whole
+    set, keep the model's defaults and still exit 0, so every case would look fine and
+    carry the wrong geometry."""
+    src = tmp_path / "p.json"
+    src.write_bytes(
+        json.dumps({"parameterSets": {"Größe": {"d": "22"}}}, ensure_ascii=False).encode("cp1252")
+    )
+    out = tmp_path / "o"
+
+    with pytest.raises(ValueError, match=r"reads a parameter-set file as UTF-8 itself"):
+        batch_export(
+            SCAD, str(src), str(out), fake_openscad, "binstl", None, True, encoding="cp1252"
+        )
+
+    assert not out.exists()
+
+
+def test_the_same_file_is_allowed_when_the_engine_cannot_take_parameter_sets(
+    fake_openscad, tmp_path, monkeypatch
+):
+    """Before 2019.05 the values go out as -D flags, which we encode ourselves, so the
+    guard must not fire."""
+    monkeypatch.setenv("FAKE_OPENSCAD_VERSION", "2015.03")
+    src = tmp_path / "p.json"
+    src.write_bytes(
+        json.dumps({"parameterSets": {"Größe": {"d": "22"}}}, ensure_ascii=False).encode("cp1252")
+    )
+    out = tmp_path / "o"
+
+    result = batch_export(
+        SCAD, str(src), str(out), fake_openscad, "binstl", None, True, encoding="cp1252"
+    )
+
+    assert [r.set_name for r in result.results] == ["Größe"]
+    assert (out / "Größe.stl").read_text(encoding="utf-8").splitlines()[-1] == "-Dd=22"
+
+
+def test_a_utf8_parameter_set_file_is_not_refused(fake_openscad, tmp_path):
+    src = tmp_path / "p.json"
+    src.write_bytes(
+        json.dumps({"parameterSets": {ACCENTED: {"d": "22"}}}, ensure_ascii=False).encode()
+    )
+
+    for encoding in (None, "utf-8", "utf8", "utf-8-sig"):
+        result = batch_export(
+            SCAD,
+            str(src),
+            str(tmp_path / str(encoding)),
+            fake_openscad,
+            "binstl",
+            None,
+            True,
+            encoding=encoding,
+        )
+        assert [r.set_name for r in result.results] == [ACCENTED]
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["export", SCAD, "P", "OUT", "--encoding", "bogus-8"],
+        ["csv2json", "P", "OUT", "--encoding", "bogus-8"],
+        ["json2csv", "P", "OUT", "--encoding", "bogus-8"],
+    ],
+    ids=["export", "csv2json", "json2csv"],
+)
+def test_an_unknown_encoding_name_is_an_error_not_a_traceback(
+    fake_openscad, tmp_path, capsys, argv
+):
+    src = tmp_path / "p.csv"
+    src.write_text("exported_filename,d\nrow,1\n", encoding="utf-8")
+    argv = [str(src) if a == "P" else str(tmp_path / "out.json") if a == "OUT" else a for a in argv]
+    if argv[0] == "export":
+        argv = [*argv, "--openscad-path", fake_openscad]
+
+    code = main(argv)
+
+    captured = capsys.readouterr()
+    assert code == 1
+    assert "Unknown encoding 'bogus-8'" in captured.err
+    assert "Traceback" not in captured.err

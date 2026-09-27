@@ -135,7 +135,8 @@ def params_json(tmp_path):
         '{"fileFormatVersion": "1", "parameterSets": {'
         '"first": {"size": "5", "fail": "false"}, '
         '"second": {"size": "7", "fail": "true"}, '
-        '"Third Größe": {"size": "9"}}}'
+        '"Third Größe": {"size": "9"}}}',
+        encoding="utf-8",  # a parameter file is UTF-8, not whatever this machine's locale is
     )
     return str(p)
 
@@ -152,7 +153,7 @@ def test_customizer_json_is_passed_natively_with_p_and_P(
     first = (out / "first.stl").read_text().splitlines()
     assert first == ["--export-format=binstl", "-p", params_json, "-P", "first"]
     # the set name must reach -P untouched: a wrong name makes OpenSCAD export defaults, exit 0
-    third = (out / "Third Größe.stl").read_text().splitlines()
+    third = (out / "Third Größe.stl").read_text(encoding="utf-8").splitlines()
     assert third == ["--export-format=binstl", "-p", params_json, "-P", "Third Größe"]
     assert "boom" in result.failures[0].stderr
 

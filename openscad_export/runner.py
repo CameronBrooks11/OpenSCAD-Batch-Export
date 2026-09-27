@@ -18,6 +18,7 @@ from importlib import metadata
 
 from openscad_export.engine import Engine, detect_engine
 from openscad_export.params import (
+    DEFAULT_ENCODING,
     construct_d_flags,
     is_parameter_set_file,
     output_name,
@@ -429,6 +430,7 @@ def batch_export(
     dry_run=False,
     timeout=None,
     name_template=None,
+    encoding=None,
 ):
     """
     Perform batch export of files based on parameter sets.
@@ -455,6 +457,8 @@ def batch_export(
             each result carries the command it would have run.
         timeout (float or None): Seconds allowed per case; a case that exceeds it is
             killed and reported as a failure with ``timed_out`` set. The batch continues.
+        encoding (str or None): Text encoding of the parameter file; UTF-8 with an
+            optional byte-order mark by default.
         name_template (str or None): ``str.format`` template for output file names with
             ``{name}``, ``{index}`` and every parameter as fields (see
             :func:`openscad_export.params.output_name`). Names are made filesystem-safe
@@ -510,7 +514,7 @@ def batch_export(
     unknown = set(image_options or {}) - set(IMAGE_OPTIONS)
     if unknown:
         raise ValueError(f"Unknown image option(s): {', '.join(sorted(unknown))}")
-    parameters = read_parameters(parameter_file)
+    parameters = read_parameters(parameter_file, encoding or DEFAULT_ENCODING)
 
     # Customizer JSON goes to OpenSCAD natively (-p FILE -P SET) when the engine can
     # take it, so values are typed by the model's own defaults and unset keys keep
@@ -615,6 +619,7 @@ def batch_export(
         "skip_existing": skip_existing,
         "timeout": timeout,
         "name_template": name_template,
+        "encoding": encoding or DEFAULT_ENCODING,
         "image_options": {k: v for k, v in (image_options or {}).items() if v},
     }
     return BatchResult(

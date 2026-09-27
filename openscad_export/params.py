@@ -2,6 +2,7 @@
 serializing values as OpenSCAD -D flags, and converting between the two formats."""
 
 import csv
+import io
 import json
 import logging
 import math
@@ -11,35 +12,51 @@ from typing import NamedTuple
 
 log = logging.getLogger("openscad_export")
 
+DEFAULT_ENCODING = "utf-8-sig"
+"""How parameter files are read: UTF-8, tolerating the byte-order mark Excel writes.
 
-def read_csv(csv_path):
+Customizer JSON is UTF-8 by specification, and a CSV of parameters is usually UTF-8 too.
+Reading with the locale's encoding instead would decode a set name or a string value
+differently on each machine — silently, on a Windows cp1252 locale. Files are always
+written as UTF-8 without a mark.
+"""
+
+
+def read_csv(csv_path, encoding=DEFAULT_ENCODING):
     """
     Read parameters from a CSV file.
 
     Args:
         csv_path (str): Path to the CSV file.
+        encoding (str): Text encoding of the file; UTF-8 with an optional byte-order mark
+            by default.
 
     Returns:
         list of dict: List of parameter dictionaries.
+
+    Raises:
+        ValueError: If the file is not text in that encoding.
     """
-    with open(csv_path, newline="") as csvfile:
-        reader = csv.DictReader(csvfile)
-        parameters = [row for row in reader]
-    return parameters
+    reader = csv.DictReader(io.StringIO(_read_text(csv_path, encoding), newline=""))
+    return list(reader)
 
 
-def read_json(json_path):
+def read_json(json_path, encoding=DEFAULT_ENCODING):
     """
     Read parameters from a JSON file.
 
     Args:
         json_path (str): Path to the JSON file.
+        encoding (str): Text encoding of the file; UTF-8 with an optional byte-order mark
+            by default.
 
     Returns:
         list of dict: List of parameter dictionaries with 'exported_filename' added.
+
+    Raises:
+        ValueError: If the file is not text in that encoding, or not valid JSON.
     """
-    with open(json_path) as jsonfile:
-        data = json.load(jsonfile)
+    data = json.loads(_read_text(json_path, encoding))
     parameter_sets = data.get("parameterSets", {})
     parameters = []
     for name, params in parameter_sets.items():
@@ -112,25 +129,41 @@ def output_name(param_set, index, template=None):
     return sanitize_filename(raw, f"model_{index}")
 
 
-def read_parameters(parameter_file):
+def read_parameters(parameter_file, encoding=DEFAULT_ENCODING):
     """
     Read parameter sets from a CSV or JSON file, chosen by extension.
 
     Args:
         parameter_file (str): Path to the CSV or JSON file.
+        encoding (str): Text encoding of the file; UTF-8 with an optional byte-order mark
+            by default.
 
     Returns:
         list of dict: List of parameter dictionaries.
 
     Raises:
-        ValueError: If the file extension is not .csv or .json.
+        ValueError: If the file extension is not .csv or .json, or the file is not text
+            in that encoding.
     """
     ext = os.path.splitext(str(parameter_file))[1].lower()
     if ext == ".csv":
-        return read_csv(parameter_file)
+        return read_csv(parameter_file, encoding)
     if ext == ".json":
-        return read_json(parameter_file)
+        return read_json(parameter_file, encoding)
     raise ValueError(f"Unsupported parameter file format: {ext}")
+
+
+def _read_text(path, encoding):
+    """Read a parameter file, reporting a wrong encoding in terms the user can act on
+    rather than as a decoding error from deep in the stack."""
+    try:
+        with open(path, encoding=encoding, newline="") as handle:
+            return handle.read()
+    except UnicodeDecodeError as e:
+        raise ValueError(
+            f"{path} is not valid {encoding} text ({e.reason} at byte {e.start}). Re-save it "
+            f"as UTF-8, or pass --encoding with the encoding it actually uses."
+        ) from e
 
 
 def parse_selection(selection_str, total_params):
@@ -428,16 +461,17 @@ def construct_d_flags(params):
     return d_flags
 
 
-def csv_to_json(csv_file, json_file):
+def csv_to_json(csv_file, json_file, encoding=DEFAULT_ENCODING):
     """
     Convert a CSV parameter file to JSON format.
 
     Args:
         csv_file (str): Path to the input CSV file.
         json_file (str): Path to the output JSON file.
+        encoding (str): Text encoding of the CSV file; the JSON file is written as UTF-8.
     """
     sets = {}
-    for index, param_set in enumerate(read_csv(csv_file)):
+    for index, param_set in enumerate(read_csv(csv_file, encoding)):
         name = str(param_set.get("exported_filename") or f"model_{index}")
         if name in sets:
             raise ValueError(
@@ -448,8 +482,10 @@ def csv_to_json(csv_file, json_file):
         sets[name] = {k: _json_value(_cell_value(v, k, index), k) for k, v in params.items()}
     json_data = {"parameterSets": sets}
     json_data["fileFormatVersion"] = "1"
-    with open(json_file, "w") as jf:
-        json.dump(json_data, jf, indent=4)
+    with open(json_file, "w", encoding="utf-8") as jf:
+        # Written as real UTF-8 rather than \uXXXX escapes, so a set name reads as itself;
+        # OpenSCAD accepts either form (checked on 2026.09.05).
+        json.dump(json_data, jf, indent=4, ensure_ascii=False)
     log.info("Converted %s to %s.", csv_file, json_file)
 
 
@@ -498,22 +534,23 @@ def _survives_parameter_sets(value):
     )
 
 
-def json_to_csv(json_file, csv_file):
+def json_to_csv(json_file, csv_file, encoding=DEFAULT_ENCODING):
     """
     Convert a JSON parameter file to CSV format.
 
     Args:
         json_file (str): Path to the input JSON file.
         csv_file (str): Path to the output CSV file.
+        encoding (str): Text encoding of the JSON file; the CSV file is written as UTF-8.
     """
-    parameter_sets = read_json(json_file)
+    parameter_sets = read_json(json_file, encoding)
     # Collect all unique keys
     all_keys = set()
     for params in parameter_sets:
         all_keys.update(params.keys())
     # Ensure 'exported_filename' is first column
     fieldnames = ["exported_filename"] + sorted(all_keys - {"exported_filename"})
-    with open(csv_file, "w", newline="") as csvfile:
+    with open(csv_file, "w", newline="", encoding="utf-8") as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
         for param_set in parameter_sets:

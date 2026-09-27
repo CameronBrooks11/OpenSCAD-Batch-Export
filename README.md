@@ -104,7 +104,7 @@ Export STL files using either a CSV or JSON parameter file.
 **Command Structure:**
 
 ```
-openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad-path PATH] [--format EXT ...] [--export-format asciistl|binstl] [--select SELECTION] [-j N] [--skip-existing | --overwrite] [--dry-run] [--timeout SECONDS] [--summary PATH.json] [--name-template TEMPLATE]
+openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad-path PATH] [--format EXT ...] [--export-format asciistl|binstl] [--select SELECTION] [-j N] [--skip-existing | --overwrite] [--dry-run] [--timeout SECONDS] [--summary PATH.json] [--name-template TEMPLATE] [--encoding NAME]
 ```
 
 **Parameters:**
@@ -125,6 +125,7 @@ openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad-
 - `--timeout SECONDS`: kill a case that runs longer than this; it is recorded as timed out and the batch continues.
 - `--summary PATH.json`: write a machine-readable record of the run — OpenSCAD path and version, the inputs, and for every case its status (`ok`, `failed`, `timeout`, `skipped`, `dry-run`), return code, duration, OpenSCAD message lines (`WARNING:`, `ECHO:`, `ERROR:`, `EXPORT-WARNING:`, ...) and the exact command line, plus the tool version and a UTC timestamp. Written for failed and dry runs too, so CI can check it in; the directory is created if needed.
 - `--name-template TEMPLATE`: how to name output files (without extension). Fields: `{name}` (the Customizer set name or `exported_filename`, else `model_<index>`), `{index}`, and any parameter, e.g. `{name}_d{diameter}` or `part_{index:03d}`. Names are always made filesystem-safe (`lid/large` becomes `lid_large`; the original set name still goes to OpenSCAD), and two cases producing the same file name are refused before anything runs.
+- `--encoding NAME`: text encoding of the parameter file. Defaults to UTF-8, tolerating the byte-order mark Excel writes; pass e.g. `cp1252` for a spreadsheet export that is not UTF-8. Files this tool writes are always UTF-8.
 - `--select SELECTION`: Select specific parameter sets to export using indices and ranges. Format examples: `'0-5'`, `'1-3,7,10-12'`, `'2,4'`. Indices are zero-based.
 
 **Examples:**

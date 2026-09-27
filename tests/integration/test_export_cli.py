@@ -362,8 +362,9 @@ def test_converted_flat_numeric_vectors_reach_openscad_as_literals(tmp_path):
 
 
 def test_parameter_set_files_ignore_the_value_kinds_the_converter_warns_about(tmp_path):
-    """Pins the engine behaviour the csv2json warning is based on: through -p/-P a nested
-    vector, a range, undef and a vector of strings all keep the model's default."""
+    """Pins the engine behaviour the csv2json warning rests on. A nested vector and undef
+    are ignored by every engine measured; ranges and vectors of strings are applied by
+    2021.01 and ignored by current builds."""
     scad = tmp_path / "m.scad"
     scad.write_text(
         'nested = [[0, 0]];\nrng = [0:1];\nmaybe = 1;\nstrvec = ["x"];\nflat = [0, 0];\n'
@@ -390,8 +391,23 @@ def test_parameter_set_files_ignore_the_value_kinds_the_converter_warns_about(tm
 
     assert result.returncode == 0, result.stdout
     echo = next(line for line in result.stdout.splitlines() if "ECHO:" in line)
-    assert "flat = [3, 4]" in echo  # the one kind that works
-    assert "nested = [[0, 0]]" in echo  # the rest keep the model's defaults
-    assert "rng = [0 : 1 : 1]" in echo
+    version = next(
+        line.split("version ")[1].split()[0]
+        for line in result.stdout.splitlines()
+        if "Using OpenSCAD version" in line
+    )
+
+    # true of every engine measured: a flat numeric vector applies, a nested vector and
+    # undef do not
+    assert "flat = [3, 4]" in echo
+    assert "nested = [[0, 0]]" in echo
     assert "maybe = 1" in echo
-    assert 'strvec = ["x"]' in echo
+
+    # ranges and vectors of strings changed somewhere between 2021.01 and 2026.09: the
+    # older engine applies them, current builds keep the model's default
+    if int(version.split(".")[0]) <= 2021:
+        assert "rng = [0 : 2 : 10]" in echo
+        assert 'strvec = ["a", "b"]' in echo
+    else:
+        assert "rng = [0 : 1 : 1]" in echo
+        assert 'strvec = ["x"]' in echo

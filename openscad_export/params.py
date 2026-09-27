@@ -460,18 +460,21 @@ def _json_value(value, key):
     Scalars keep their JSON type, which OpenSCAD reads. Everything else is written as the
     OpenSCAD literal in a string, because OpenSCAD ignores a JSON array outright.
 
-    Only a flat vector of numbers survives that encoding: through ``-p/-P`` OpenSCAD
-    silently keeps the model's default for a nested vector, a vector of strings, a range
-    or ``undef`` (measured on 2026.09.05), so those are warned about — the CSV file
-    itself, exported directly, does apply them.
+    Only a flat vector of numbers survives that encoding on every engine. Through
+    ``-p/-P``, OpenSCAD keeps the model's default for a nested vector or ``undef`` on both
+    2021.01 and 2026.09.05, and current builds also ignore a range and a vector of strings
+    that 2021.01 applies. All of those are warned about; exporting the CSV file directly
+    applies them.
     """
     if isinstance(value, (bool, int, float, str)):
         return value
     literal = to_scad_literal(value)
     if not _survives_parameter_sets(value):
         log.warning(
-            "Parameter %r is %s, which OpenSCAD ignores in a parameter-set file; it will "
-            "keep the model's default. Export from the CSV file to apply it.",
+            "Parameter %r is %s, which current OpenSCAD builds ignore in a parameter-set "
+            "file, keeping the model's default (2021.01 applies ranges and vectors of "
+            "strings; no build applies a nested vector or undef). Export from the CSV file "
+            "to apply it.",
             key,
             literal,
         )

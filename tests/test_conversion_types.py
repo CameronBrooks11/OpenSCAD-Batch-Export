@@ -75,8 +75,12 @@ def test_value_kinds_openscad_ignores_in_a_parameter_set_are_warned_about(tmp_pa
         stored = convert(tmp_path, {"v": cell})["v"]
 
     assert isinstance(stored, str)
-    assert "OpenSCAD ignores" in caplog.text and "'v'" in caplog.text
-    assert "keep the model's default" in caplog.text
+    # the warning must name the parameter, show the value, and point at the CSV route;
+    # the exact sentence is not pinned
+    (record,) = [r for r in caplog.records if r.levelname == "WARNING"]
+    message = record.getMessage()
+    assert "'v'" in message and stored in message
+    assert "model's default" in message and "CSV" in message
 
 
 @pytest.mark.parametrize("cell", ["[1, 2]", "[3]", "[1.5, -2, 0]"])
@@ -84,7 +88,7 @@ def test_flat_numeric_vectors_are_not_warned_about(tmp_path, cell, caplog):
     with caplog.at_level(logging.WARNING, logger="openscad_export"):
         convert(tmp_path, {"v": cell})
 
-    assert "OpenSCAD ignores" not in caplog.text
+    assert [r for r in caplog.records if r.levelname == "WARNING"] == []
 
 
 def test_a_cell_that_cannot_be_read_names_the_row_and_column(tmp_path):

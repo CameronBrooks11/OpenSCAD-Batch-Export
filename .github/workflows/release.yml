@@ -1,0 +1,173 @@
+# Cutting a release is `git tag vX.Y.Z && git push origin vX.Y.Z`. This workflow then
+# verifies the tag, publishes it to PyPI and attaches the frozen binaries to a GitHub
+# release.
+#
+# Publishing to PyPI uses trusted publishing: no API token is stored anywhere. PyPI is
+# configured to accept an OpenID Connect identity from this repository, this file's name
+# and the `pypi` environment, so all three have to match for an upload to be accepted.
+# `id-token: write` is granted only to the job that publishes.
+#
+# Uploading a version to PyPI cannot be undone, so the test suite runs first against the
+# tagged tree and the publish waits on it.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify the tagged tree
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: "3.13"
+      - uses: extractions/setup-just@v4
+
+      - name: Install OpenSCAD
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends openscad xvfb
+
+      - run: just setup
+      - run: just check
+      - run: xvfb-run -a just test
+
+      - name: The tag must match the version in pyproject.toml
+        run: |
+          version=$(uv run --no-project python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          tag="${GITHUB_REF_NAME#v}"
+          echo "pyproject: $version   tag: $tag"
+          test "$version" = "$tag"
+
+  dist:
+    name: Build sdist and wheel
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: "3.13"
+
+      - run: uv build
+      - name: Check the metadata PyPI will render
+        run: uvx twine check --strict dist/*
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  binaries:
+    name: Binary (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            archive: scadbatch-windows.zip
+          - os: ubuntu-latest
+            archive: scadbatch-linux.tar.gz
+          - os: macos-latest
+            archive: scadbatch-macos.tar.gz
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - run: python -m pip install --upgrade pip pyinstaller
+
+      - name: Freeze the CLI and the GUI
+        run: |
+          pyinstaller --onefile --name scadbatch scadbatch/cli.py
+          pyinstaller --onefile --windowed --name scadbatch-gui scadbatch/gui.py
+
+      - name: The frozen CLI must start (POSIX)
+        run: ./dist/scadbatch --help
+        if: runner.os != 'Windows'
+      - name: The frozen CLI must start (Windows)
+        run: .\dist\scadbatch.exe --help
+        if: runner.os == 'Windows'
+
+      - name: Package (zip)
+        if: runner.os == 'Windows'
+        run: |
+          New-Item -ItemType Directory -Force -Path build
+          Compress-Archive -Path dist\scadbatch.exe, dist\scadbatch-gui.exe -DestinationPath build\${{ matrix.archive }}
+      - name: Package (tar)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p build
+          tar -czvf "build/${{ matrix.archive }}" -C dist scadbatch scadbatch-gui
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: binary-${{ matrix.os }}
+          path: build/${{ matrix.archive }}
+          if-no-files-found: error
+
+  pypi:
+    name: Publish to PyPI
+    # Also waits on the binaries: PyPI never accepts a second upload of a version, so a
+    # binary that fails for anything needing a code change would burn the version number.
+    needs: [verify, dist, binaries]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: pypi
+      url: https://pypi.org/p/scadbatch
+    permissions:
+      id-token: write # mandatory for trusted publishing, and granted nowhere else
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@v1.14.2
+
+  github-release:
+    name: Publish the GitHub release
+    needs: [verify, dist, binaries]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: A tag that is not exactly vN.N.N is a prerelease
+        id: kind
+        run: |
+          if [[ "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: softprops/action-gh-release@v3.0.3
+        with:
+          prerelease: ${{ steps.kind.outputs.prerelease }}
+          files: |
+            artifacts/*.zip
+            artifacts/*.tar.gz
+            artifacts/*.whl
+          generate_release_notes: true
+          fail_on_unmatched_files: true

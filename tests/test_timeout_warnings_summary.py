@@ -5,8 +5,8 @@ import time
 
 import pytest
 
-from openscad_export import batch_export
-from openscad_export.cli import main
+from scadbatch import batch_export
+from scadbatch.cli import main
 
 SCAD = "model.scad"
 
@@ -242,7 +242,7 @@ def test_cli_summary_is_written_for_a_dry_run_too(fake_openscad, params_csv, tmp
 def test_warnings_are_logged_per_case(fake_openscad, params_csv, tmp_path, monkeypatch, caplog):
     monkeypatch.setenv("FAKE_OPENSCAD_STDERR", "WARNING: careful")
 
-    with caplog.at_level(logging.WARNING, logger="openscad_export"):
+    with caplog.at_level(logging.WARNING, logger="scadbatch"):
         run(fake_openscad, params_csv, tmp_path / "o")
 
     assert "first.stl: WARNING: careful" in caplog.text

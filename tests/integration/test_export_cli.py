@@ -24,7 +24,7 @@ SIMPLE_CUBE = EXAMPLES / "simpleCube"
 
 def run_cli(*args):
     return subprocess.run(
-        [sys.executable, "-m", "openscad_export.export", *args],
+        [sys.executable, "-m", "scadbatch.export", *args],
         capture_output=True,
         text=True,
         check=False,

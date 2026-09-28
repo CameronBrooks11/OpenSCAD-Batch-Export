@@ -25,22 +25,22 @@ jobs:
 
       - name: Build CLI Executable
         run: |
-          pyinstaller --onefile --name openscad-batch-export openscad_export/export.py
+          pyinstaller --onefile --name scadbatch scadbatch/export.py
 
       - name: Build GUI Executable
         run: |
-          pyinstaller --onefile --windowed --name openscad-batch-export-gui openscad_export/gui.py
+          pyinstaller --onefile --windowed --name scadbatch-gui scadbatch/gui.py
 
       - name: Package Executables
         run: |
           New-Item -ItemType Directory -Force -Path build
-          Compress-Archive -Path dist\openscad-batch-export.exe, dist\openscad-batch-export-gui.exe -DestinationPath build\openscad-batch-export-windows.zip
+          Compress-Archive -Path dist\scadbatch.exe, dist\scadbatch-gui.exe -DestinationPath build\scadbatch-windows.zip
 
       - name: Upload Windows Executable
         uses: actions/upload-artifact@v7
         with:
           name: windows-executables
-          path: build/openscad-batch-export-windows.zip
+          path: build/scadbatch-windows.zip
 
   build-linux:
     name: Build on Linux
@@ -61,22 +61,22 @@ jobs:
 
       - name: Build CLI Executable
         run: |
-          pyinstaller --onefile --name openscad-batch-export openscad_export/export.py
+          pyinstaller --onefile --name scadbatch scadbatch/export.py
 
       - name: Build GUI Executable
         run: |
-          pyinstaller --onefile --windowed --name openscad-batch-export-gui openscad_export/gui.py
+          pyinstaller --onefile --windowed --name scadbatch-gui scadbatch/gui.py
 
       - name: Package Executables
         run: |
           mkdir -p build
-          tar -czvf build/openscad-batch-export-linux.tar.gz -C dist openscad-batch-export openscad-batch-export-gui
+          tar -czvf build/scadbatch-linux.tar.gz -C dist scadbatch scadbatch-gui
 
       - name: Upload Linux Executable
         uses: actions/upload-artifact@v7
         with:
           name: linux-executables
-          path: build/openscad-batch-export-linux.tar.gz
+          path: build/scadbatch-linux.tar.gz
 
   build-macos:
     name: Build on macOS
@@ -97,22 +97,22 @@ jobs:
 
       - name: Build CLI Executable
         run: |
-          pyinstaller --onefile --name openscad-batch-export openscad_export/export.py
+          pyinstaller --onefile --name scadbatch scadbatch/export.py
 
       - name: Build GUI Executable
         run: |
-          pyinstaller --onefile --windowed --name openscad-batch-export-gui openscad_export/gui.py
+          pyinstaller --onefile --windowed --name scadbatch-gui scadbatch/gui.py
 
       - name: Package Executables
         run: |
           mkdir -p build
-          tar -czvf build/openscad-batch-export-macos.tar.gz -C dist openscad-batch-export openscad-batch-export-gui
+          tar -czvf build/scadbatch-macos.tar.gz -C dist scadbatch scadbatch-gui
 
       - name: Upload macOS Executable
         uses: actions/upload-artifact@v7
         with:
           name: macos-executables
-          path: build/openscad-batch-export-macos.tar.gz
+          path: build/scadbatch-macos.tar.gz
 
   release:
     name: Create GitHub Release
@@ -160,8 +160,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./windows/openscad-batch-export-windows.zip
-          asset_name: openscad-batch-export-windows.zip
+          asset_path: ./windows/scadbatch-windows.zip
+          asset_name: scadbatch-windows.zip
           asset_content_type: application/zip
 
       - name: Upload Linux Executable to Release
@@ -170,8 +170,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./linux/openscad-batch-export-linux.tar.gz
-          asset_name: openscad-batch-export-linux.tar.gz
+          asset_path: ./linux/scadbatch-linux.tar.gz
+          asset_name: scadbatch-linux.tar.gz
           asset_content_type: application/gzip
 
       - name: Upload macOS Executable to Release
@@ -180,6 +180,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./macos/openscad-batch-export-macos.tar.gz
-          asset_name: openscad-batch-export-macos.tar.gz
+          asset_path: ./macos/scadbatch-macos.tar.gz
+          asset_name: scadbatch-macos.tar.gz
           asset_content_type: application/gzip

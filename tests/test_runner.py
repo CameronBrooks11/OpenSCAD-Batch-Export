@@ -3,7 +3,7 @@ import os
 
 import pytest
 
-from openscad_export import BatchResult, ExportResult, batch_export
+from scadbatch import BatchResult, ExportResult, batch_export
 
 SCAD = "model.scad"
 
@@ -76,7 +76,7 @@ def test_summary_reports_counts_and_paths(fake_openscad, params_csv, tmp_path):
 
 
 def test_progress_is_logged_not_printed(fake_openscad, params_csv, tmp_path, caplog, capsys):
-    with caplog.at_level(logging.INFO, logger="openscad_export"):
+    with caplog.at_level(logging.INFO, logger="scadbatch"):
         batch_export(SCAD, params_csv, str(tmp_path / "o"), fake_openscad, "binstl", None, True)
 
     messages = [r.getMessage() for r in caplog.records]
@@ -113,7 +113,7 @@ def test_bad_parameter_is_a_per_case_failure_and_batch_continues(fake_openscad, 
 
 
 def test_missing_openscad_fails_before_any_case_runs(params_csv, tmp_path):
-    from openscad_export import OpenSCADNotFound
+    from scadbatch import OpenSCADNotFound
 
     out = tmp_path / "never-created"
     with pytest.raises(OpenSCADNotFound):
@@ -122,7 +122,7 @@ def test_missing_openscad_fails_before_any_case_runs(params_csv, tmp_path):
 
 
 def test_engine_detection_is_logged(fake_openscad, params_csv, tmp_path, caplog):
-    with caplog.at_level(logging.INFO, logger="openscad_export"):
+    with caplog.at_level(logging.INFO, logger="scadbatch"):
         batch_export(SCAD, params_csv, str(tmp_path / "o"), fake_openscad, "binstl", None, True)
 
     assert f"Using OpenSCAD version 2021.01 at {fake_openscad}" in caplog.text
@@ -145,7 +145,7 @@ def test_customizer_json_is_passed_natively_with_p_and_P(
     fake_openscad, params_json, tmp_path, caplog
 ):
     out = tmp_path / "o"
-    with caplog.at_level(logging.INFO, logger="openscad_export"):
+    with caplog.at_level(logging.INFO, logger="scadbatch"):
         result = batch_export(SCAD, params_json, str(out), fake_openscad, "binstl", None, True)
 
     assert "Passing parameter sets natively with -p/-P." in caplog.text
@@ -160,7 +160,7 @@ def test_customizer_json_is_passed_natively_with_p_and_P(
 
 def test_csv_is_passed_as_d_flags_never_p(fake_openscad, params_csv, tmp_path, caplog):
     out = tmp_path / "o"
-    with caplog.at_level(logging.INFO, logger="openscad_export"):
+    with caplog.at_level(logging.INFO, logger="scadbatch"):
         batch_export(SCAD, params_csv, str(out), fake_openscad, "binstl", None, True)
 
     assert "Passing parameters as -D flags." in caplog.text
@@ -174,7 +174,7 @@ def test_json_falls_back_to_d_flags_on_an_engine_without_parameter_sets(
 ):
     monkeypatch.setenv("FAKE_OPENSCAD_VERSION", "2015.03")
     out = tmp_path / "o"
-    with caplog.at_level(logging.INFO, logger="openscad_export"):
+    with caplog.at_level(logging.INFO, logger="scadbatch"):
         result = batch_export(SCAD, params_json, str(out), fake_openscad, "binstl", None, True)
 
     assert "Passing parameters as -D flags." in caplog.text
@@ -242,7 +242,7 @@ def test_export_format_flag_only_applies_to_stl(fake_openscad, params_csv, tmp_p
 
 def test_unlisted_formats_are_warned_about_not_refused(fake_openscad, params_csv, tmp_path, caplog):
     out = tmp_path / "o"
-    with caplog.at_level(logging.WARNING, logger="openscad_export"):
+    with caplog.at_level(logging.WARNING, logger="scadbatch"):
         result = batch_export(
             SCAD,
             params_csv,
@@ -285,7 +285,7 @@ def test_no_warning_when_the_engine_list_is_unknown(
     fake_openscad, params_csv, tmp_path, monkeypatch, caplog
 ):
     monkeypatch.setenv("FAKE_OPENSCAD_FORMATS", "none")
-    with caplog.at_level(logging.WARNING, logger="openscad_export"):
+    with caplog.at_level(logging.WARNING, logger="scadbatch"):
         result = batch_export(
             SCAD,
             params_csv,
@@ -388,7 +388,7 @@ def test_jobs_bounds_how_many_openscad_processes_run_at_once(
 
 
 def test_jobs_defaults_to_cpu_count(fake_openscad, params_csv, tmp_path, caplog):
-    with caplog.at_level(logging.INFO, logger="openscad_export"):
+    with caplog.at_level(logging.INFO, logger="scadbatch"):
         batch_export(SCAD, params_csv, str(tmp_path / "o"), fake_openscad, "binstl", None, False)
 
     expected = os.cpu_count() or 1
@@ -399,7 +399,7 @@ def test_jobs_defaults_to_cpu_count(fake_openscad, params_csv, tmp_path, caplog)
 
 
 def test_sequential_forces_one_job(fake_openscad, params_csv, tmp_path, caplog):
-    with caplog.at_level(logging.INFO, logger="openscad_export"):
+    with caplog.at_level(logging.INFO, logger="scadbatch"):
         batch_export(
             SCAD, params_csv, str(tmp_path / "o"), fake_openscad, "binstl", None, True, jobs=8
         )
@@ -454,7 +454,7 @@ def test_process_registered_after_an_interrupt_is_terminated_on_arrival():
     import subprocess
     import sys
 
-    from openscad_export import runner
+    from scadbatch import runner
 
     registry = runner._ActiveProcesses()
     registry.terminate_all()
@@ -477,7 +477,7 @@ def test_signalling_a_process_in_our_own_group_never_hits_ourselves():
     import subprocess
     import sys
 
-    from openscad_export import runner
+    from scadbatch import runner
 
     same_group = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
     try:

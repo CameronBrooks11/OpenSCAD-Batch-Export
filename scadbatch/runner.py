@@ -16,8 +16,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from importlib import metadata
 
-from openscad_export.engine import Engine, detect_engine
-from openscad_export.params import (
+from scadbatch.engine import Engine, detect_engine
+from scadbatch.params import (
     DEFAULT_ENCODING,
     construct_d_flags,
     is_parameter_set_file,
@@ -27,7 +27,7 @@ from openscad_export.params import (
     read_parameters,
 )
 
-log = logging.getLogger("openscad_export")
+log = logging.getLogger("scadbatch")
 
 
 class _ActiveProcesses:
@@ -403,7 +403,7 @@ def _reject_duplicate_names(names):
 
 def _tool_version():
     try:
-        return metadata.version("openscad-batch-export")
+        return metadata.version("scadbatch")
     except metadata.PackageNotFoundError:
         return None
 
@@ -441,7 +441,7 @@ def batch_export(
         parameter_file (str): Path to the CSV or JSON file containing parameters.
         output_folder (str): Directory where STL files will be saved.
         openscad_path (str or None): Path to or name of the OpenSCAD executable; None to
-            discover it (see :func:`openscad_export.engine.find_openscad`).
+            discover it (see :func:`scadbatch.engine.find_openscad`).
         export_format (str): Export format ('asciistl' or 'binstl').
         selection (str or None): Selection string to specify which parameter sets to export.
         sequential (bool): Run one export at a time; the same as ``jobs=1``.
@@ -462,7 +462,7 @@ def batch_export(
             optional byte-order mark by default.
         name_template (str or None): ``str.format`` template for output file names with
             ``{name}``, ``{index}`` and every parameter as fields (see
-            :func:`openscad_export.params.output_name`). Names are made filesystem-safe
+            :func:`scadbatch.params.output_name`). Names are made filesystem-safe
             either way, and two cases producing the same name is an error before
             anything runs.
 

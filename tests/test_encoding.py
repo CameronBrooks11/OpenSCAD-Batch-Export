@@ -5,9 +5,9 @@ import json
 
 import pytest
 
-from openscad_export import batch_export
-from openscad_export.cli import main
-from openscad_export.params import csv_to_json, json_to_csv, read_parameters
+from scadbatch import batch_export
+from scadbatch.cli import main
+from scadbatch.params import csv_to_json, json_to_csv, read_parameters
 
 SCAD = "model.scad"
 ACCENTED = "Größe_日本_café"
@@ -190,7 +190,7 @@ def test_json_is_written_as_utf8_whatever_the_locale(tmp_path):
     code = (
         "import locale, sys; assert locale.getpreferredencoding(False).lower() != 'utf-8', "
         "locale.getpreferredencoding(False)\n"
-        "from openscad_export.params import csv_to_json\n"
+        "from scadbatch.params import csv_to_json\n"
         f"csv_to_json({str(src)!r}, {str(out)!r})\n"
     )
 
@@ -208,7 +208,7 @@ def test_csv_is_written_as_utf8_whatever_the_locale(tmp_path):
     out = tmp_path / "p.csv"
     code = (
         "import locale; assert locale.getpreferredencoding(False).lower() != 'utf-8'\n"
-        "from openscad_export.params import json_to_csv\n"
+        "from scadbatch.params import json_to_csv\n"
         f"json_to_csv({str(src)!r}, {str(out)!r})\n"
     )
 

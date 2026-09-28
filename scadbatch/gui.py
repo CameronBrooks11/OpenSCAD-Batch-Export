@@ -1,4 +1,4 @@
-# openscad_export/gui.py
+# scadbatch/gui.py
 
 """
 Graphical User Interface (GUI) for the OpenSCAD Batch Exporter.
@@ -24,7 +24,7 @@ import tkinter as tk
 from datetime import datetime
 from tkinter import filedialog, messagebox, ttk
 
-from openscad_export import batch_export, csv_to_json, json_to_csv
+from scadbatch import batch_export, csv_to_json, json_to_csv
 
 
 class OpenSCADBatchExporterGUI:
@@ -395,7 +395,7 @@ class OpenSCADBatchExporterGUI:
             seq (bool): Whether to process exports sequentially.
         """
         handler = GuiLogHandler(self)
-        logger = logging.getLogger("openscad_export")
+        logger = logging.getLogger("scadbatch")
         logger.addHandler(handler)
         if logger.level == logging.NOTSET or logger.level > logging.INFO:
             logger.setLevel(logging.INFO)
@@ -529,11 +529,11 @@ class OpenSCADBatchExporterGUI:
         """
         help_text = ""
         commands = [
-            ["openscad-export", "--help"],
-            ["openscad-export", "export", "--help"],
-            ["openscad-export", "csv2json", "--help"],
-            ["openscad-export", "json2csv", "--help"],
-            ["openscad-export", "gui", "--help"],
+            ["scadbatch", "--help"],
+            ["scadbatch", "export", "--help"],
+            ["scadbatch", "csv2json", "--help"],
+            ["scadbatch", "json2csv", "--help"],
+            ["scadbatch", "gui", "--help"],
         ]
 
         for cmd in commands:

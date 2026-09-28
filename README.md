@@ -1,4 +1,4 @@
-# OpenSCAD-Batch-Exporter
+# scadbatch
 
 This repository provides a tool to automate the export of STL models from OpenSCAD using CSV or JSON files of parameters. It offers a simple and user-friendly solution for batch exporting models with different parameter sets and includes a graphical user interface (GUI) for ease of use. Inspired by:
 
@@ -32,11 +32,11 @@ For easy usage, simply click on the **Releases** section on the right-hand side 
 1. **Clone the repository:**
 
     ```
-    git clone https://github.com/CameronBrooks11/OpenSCAD-Batch-Exporter.git
+    git clone https://github.com/CameronBrooks11/scadbatch.git
     ```
 
     ```
-    cd OpenSCAD-Batch-Exporter
+    cd scadbatch
     ```
 
 2. **Install the Python library:**
@@ -50,7 +50,7 @@ For easy usage, simply click on the **Releases** section on the right-hand side 
 4. **If you encounter the following warning:**
 
     ```
-    WARNING: The script openscad-export.exe is installed in 'C:\Users\<YourUserName>\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_<somenumbers>\LocalCache\local-packages\Python311\Scripts' which is not on PATH.
+    WARNING: The script scadbatch.exe is installed in 'C:\Users\<YourUserName>\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_<somenumbers>\LocalCache\local-packages\Python311\Scripts' which is not on PATH.
     Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
     ```
 
@@ -74,7 +74,7 @@ For easy usage, simply click on the **Releases** section on the right-hand side 
 
 ## Usage
 
-Once installed, the tool can be called from anywhere using the `openscad-export` command. The tool provides three primary modes:
+Once installed, the tool can be called from anywhere using the `scadbatch` command. (It was called `openscad-export` before; that name still works and will be removed after v2.0.) The tool provides three primary modes:
 
 1. **Export STL Files**
 2. **Convert CSV to JSON**
@@ -85,7 +85,7 @@ Once installed, the tool can be called from anywhere using the `openscad-export`
 Launch the graphical interface for an intuitive way to configure and perform batch exports. Run the following command:
 
 ```
-openscad-export gui
+scadbatch gui
 ```
 
 From the GUI, you can:
@@ -104,7 +104,7 @@ Export STL files using either a CSV or JSON parameter file.
 **Command Structure:**
 
 ```
-openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad-path PATH] [--format EXT ...] [--export-format asciistl|binstl] [--select SELECTION] [-j N] [--skip-existing | --overwrite] [--dry-run] [--timeout SECONDS] [--summary PATH.json] [--name-template TEMPLATE] [--encoding NAME]
+scadbatch export <scad_file> <parameter_file> <output_folder> [--openscad-path PATH] [--format EXT ...] [--export-format asciistl|binstl] [--select SELECTION] [-j N] [--skip-existing | --overwrite] [--dry-run] [--timeout SECONDS] [--summary PATH.json] [--name-template TEMPLATE] [--encoding NAME]
 ```
 
 **Parameters:**
@@ -118,7 +118,7 @@ openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad-
 - `--openscad-path`: Path to the OpenSCAD executable. If omitted, `$OPENSCAD` is used, then `openscad` on PATH, then the platform's default install location (`C:\Program Files\OpenSCAD` on Windows, `/Applications/OpenSCAD.app` on macOS).
 - `--format EXT`: Output format by file extension, as OpenSCAD's `-o` accepts it (`stl`, `off`, `3mf`, `png`, `csg`, ... — a format the detected OpenSCAD does not advertise in its `--help` is warned about; one it really cannot write fails per case with OpenSCAD's own message). Repeat the flag to export every case in several formats. Defaults to `stl`.
 - `--export-format`: STL flavour, `asciistl` or `binstl`. Defaults to `binstl`. Only applies to `stl`.
-- `--camera`, `--imgsize`, `--colorscheme`: passed straight to OpenSCAD for `png` output, e.g. `--format png --imgsize 1024,768 --camera 0,0,0,55,0,25,140`. OpenSCAD 2021.01 needs a display to render PNG (`xvfb-run openscad-export ...` on a headless Linux box); current builds render offscreen.
+- `--camera`, `--imgsize`, `--colorscheme`: passed straight to OpenSCAD for `png` output, e.g. `--format png --imgsize 1024,768 --camera 0,0,0,55,0,25,140`. OpenSCAD 2021.01 needs a display to render PNG (`xvfb-run scadbatch ...` on a headless Linux box); current builds render offscreen.
 - `-j N`, `--jobs N`: run up to N OpenSCAD processes at once. Defaults to the number of CPUs. Ctrl-C stops the running renders and abandons the rest. (`--sequential` is a deprecated alias for `--jobs 1`.)
 - `--skip-existing`: leave a case alone when its output file already exists, and say so in the summary. The default (`--overwrite`) re-exports everything.
 - `-n`, `--dry-run`: print the OpenSCAD command for every case and run nothing; no files or folders are created.
@@ -133,7 +133,7 @@ openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad-
 - **Export with CSV:**
 
     ```
-    openscad-export export examples/simpleCube/simpleCube.scad examples/simpleCube/simpleCube.csv output
+    scadbatch export examples/simpleCube/simpleCube.scad examples/simpleCube/simpleCube.csv output
     ```
 
 - **Selective Export:**
@@ -141,7 +141,7 @@ openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad-
     Export parameter sets from index 0 to 5:
 
     ```
-    openscad-export export examples/candleStand/candleStand.scad examples/candleStand/candleStand.csv output --select "0-5"
+    scadbatch export examples/candleStand/candleStand.scad examples/candleStand/candleStand.csv output --select "0-5"
     ```
 
 - **Export from JSON:**
@@ -149,13 +149,13 @@ openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad-
     Convert CSV to JSON first:
 
     ```
-    openscad-export csv2json examples/simpleCube/simpleCube.csv examples/simpleCube/simpleCube.json
+    scadbatch csv2json examples/simpleCube/simpleCube.csv examples/simpleCube/simpleCube.json
     ```
 
     Then, export using the JSON file:
 
     ```
-    openscad-export export examples/simpleCube/simpleCube.scad examples/simpleCube/simpleCube.json output
+    scadbatch export examples/simpleCube/simpleCube.scad examples/simpleCube/simpleCube.json output
     ```
 
 #### 2. Convert CSV to JSON
@@ -165,7 +165,7 @@ Convert a CSV parameter file to JSON format compatible with OpenSCAD's customize
 **Command Structure:**
 
 ```
-openscad-export csv2json <csv_file> <json_file> [--encoding NAME]
+scadbatch csv2json <csv_file> <json_file> [--encoding NAME]
 ```
 
 Values are read with the same rules the exporter uses, so a cell means the same thing either way. A vector is stored as an OpenSCAD literal in a string, because OpenSCAD ignores a JSON array; nested vectors, ranges and `undef` are warned about, since current OpenSCAD builds ignore those in a parameter-set file and keep the model's default (export the CSV directly to apply them).
@@ -173,7 +173,7 @@ Values are read with the same rules the exporter uses, so a cell means the same 
 **Example:**
 
 ```
-openscad-export csv2json examples/candleStand/candleStand.csv examples/candleStand/candleStand.json
+scadbatch csv2json examples/candleStand/candleStand.csv examples/candleStand/candleStand.json
 ```
 
 #### 3. Convert JSON to CSV
@@ -183,13 +183,13 @@ Convert a JSON parameter file back to CSV format.
 **Command Structure:**
 
 ```
-openscad-export json2csv <json_file> <csv_file> [--encoding NAME]
+scadbatch json2csv <json_file> <csv_file> [--encoding NAME]
 ```
 
 **Example:**
 
 ```
-openscad-export json2csv examples/sign/sign.json examples/sign/sign_converted.csv
+scadbatch json2csv examples/sign/sign.json examples/sign/sign_converted.csv
 ```
 
 ## CSV File Structure

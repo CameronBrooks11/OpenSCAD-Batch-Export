@@ -6,7 +6,7 @@ import logging
 
 import pytest
 
-from openscad_export.params import coerce_cell, construct_d_flags, csv_to_json, json_to_csv
+from scadbatch.params import coerce_cell, construct_d_flags, csv_to_json, json_to_csv
 
 
 def convert(tmp_path, cells):
@@ -71,7 +71,7 @@ def test_vectors_are_stored_as_strings_not_json_arrays(tmp_path):
 def test_value_kinds_openscad_ignores_in_a_parameter_set_are_warned_about(tmp_path, cell, caplog):
     """Only a flat numeric vector survives the literal-in-a-string encoding; for the rest
     OpenSCAD silently keeps the model's default, so the conversion must say so."""
-    with caplog.at_level(logging.WARNING, logger="openscad_export"):
+    with caplog.at_level(logging.WARNING, logger="scadbatch"):
         stored = convert(tmp_path, {"v": cell})["v"]
 
     assert isinstance(stored, str)
@@ -85,7 +85,7 @@ def test_value_kinds_openscad_ignores_in_a_parameter_set_are_warned_about(tmp_pa
 
 @pytest.mark.parametrize("cell", ["[1, 2]", "[3]", "[1.5, -2, 0]"])
 def test_flat_numeric_vectors_are_not_warned_about(tmp_path, cell, caplog):
-    with caplog.at_level(logging.WARNING, logger="openscad_export"):
+    with caplog.at_level(logging.WARNING, logger="scadbatch"):
         convert(tmp_path, {"v": cell})
 
     assert [r for r in caplog.records if r.levelname == "WARNING"] == []
@@ -186,7 +186,7 @@ def test_unnamed_rows_get_the_index_the_exporter_uses(tmp_path):
 
 
 def test_cli_reports_a_bad_cell_without_a_traceback(tmp_path, capsys):
-    from openscad_export.cli import main
+    from scadbatch.cli import main
 
     src = tmp_path / "p.csv"
     src.write_text("exported_filename,label\nrow,[draft]\n")
@@ -200,7 +200,7 @@ def test_cli_reports_a_bad_cell_without_a_traceback(tmp_path, capsys):
 
 
 def test_cli_reports_an_unserialisable_json_value_without_a_traceback(tmp_path, capsys):
-    from openscad_export.cli import main
+    from scadbatch.cli import main
 
     src = tmp_path / "p.json"
     src.write_text('{"parameterSets": {"row": {"nested": {"a": 1}}}}')

@@ -111,18 +111,25 @@ jobs:
         # matching on the output cannot tell a missing module from a missing display. Give
         # the binaries a display instead: one that opens enters mainloop and never returns,
         # so the timeout's 124 is the pass and any other exit status is a real fault.
+        #
+        # timeout wraps xvfb-run rather than the other way round. xvfb-run cleans up its
+        # temporary directory from an EXIT trap that exits 5 when the removal fails, which
+        # it does when its child was killed mid-run -- and that 5 replaces the 124 the kill
+        # produced. Output goes to a file, not a command substitution, so an Xvfb still
+        # holding the pipe cannot hang the step after the timeout fires.
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends xvfb
           check() {
+            log=$(mktemp)
             rc=0
-            out=$(xvfb-run -a timeout 20 "$@" 2>&1) || rc=$?
-            echo "$out"
+            timeout -k 5 20 xvfb-run -a "$@" >"$log" 2>&1 || rc=$?
+            cat "$log"
             if [ "$rc" -eq 124 ]; then
               return 0
             fi
-            if grep -q "does not include the graphical interface" <<<"$out"; then
+            if grep -q "does not include the graphical interface" "$log"; then
               echo "::error::$*: scadbatch.gui was not bundled into the binary"
             else
               echo "::error::$*: exited with $rc instead of staying open"

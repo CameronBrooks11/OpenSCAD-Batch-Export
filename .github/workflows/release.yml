@@ -68,6 +68,7 @@ jobs:
         with:
           name: dist
           path: dist/
+          if-no-files-found: error
 
   binaries:
     name: Binary (${{ matrix.os }})
@@ -96,10 +97,10 @@ jobs:
           pyinstaller --onefile --name scadbatch scadbatch/cli.py
           pyinstaller --onefile --windowed --name scadbatch-gui scadbatch/gui.py
 
-      - name: The frozen CLI must start
+      - name: The frozen CLI must start (POSIX)
         run: ./dist/scadbatch --help
         if: runner.os != 'Windows'
-      - name: The frozen CLI must start
+      - name: The frozen CLI must start (Windows)
         run: .\dist\scadbatch.exe --help
         if: runner.os == 'Windows'
 
@@ -118,10 +119,13 @@ jobs:
         with:
           name: binary-${{ matrix.os }}
           path: build/${{ matrix.archive }}
+          if-no-files-found: error
 
   pypi:
     name: Publish to PyPI
-    needs: [verify, dist]
+    # Also waits on the binaries: PyPI never accepts a second upload of a version, so a
+    # binary that fails for anything needing a code change would burn the version number.
+    needs: [verify, dist, binaries]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:

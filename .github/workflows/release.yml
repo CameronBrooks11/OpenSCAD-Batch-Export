@@ -93,8 +93,10 @@ jobs:
       - run: python -m pip install --upgrade pip pyinstaller
 
       - name: Freeze the CLI and the GUI
+        # scadbatch.gui is imported inside a function, so PyInstaller cannot see it and
+        # `scadbatch gui` would report the interface as unavailable.
         run: |
-          pyinstaller --onefile --name scadbatch scadbatch/cli.py
+          pyinstaller --onefile --name scadbatch --hidden-import=scadbatch.gui scadbatch/cli.py
           pyinstaller --onefile --windowed --name scadbatch-gui scadbatch/gui.py
 
       - name: The frozen CLI must start (POSIX)
@@ -103,6 +105,25 @@ jobs:
       - name: The frozen CLI must start (Windows)
         run: .\dist\scadbatch.exe --help
         if: runner.os == 'Windows'
+
+      - name: The frozen binaries must contain the GUI
+        # There is no display on the runner, so neither can actually open a window. What is
+        # checked is that the GUI module and its Tcl/Tk runtime were bundled at all: those
+        # are packaging faults, where "cannot open display" is expected here.
+        if: runner.os == 'Linux'
+        run: |
+          cli=$(./dist/scadbatch gui 2>&1 || true)
+          echo "$cli"
+          if grep -q "does not include the graphical interface" <<<"$cli"; then
+            echo "::error::scadbatch.gui was not bundled into the CLI binary"
+            exit 1
+          fi
+          gui=$(./dist/scadbatch-gui 2>&1 || true)
+          echo "$gui"
+          if grep -qE "Failed to execute script|ImportError|ModuleNotFoundError" <<<"$gui"; then
+            echo "::error::the GUI binary cannot start; its Tcl/Tk runtime is probably not bundled"
+            exit 1
+          fi
 
       - name: Package (zip)
         if: runner.os == 'Windows'

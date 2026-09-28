@@ -7,6 +7,7 @@ Available subcommands:
 - gui: Launch the graphical user interface."""
 
 import argparse
+import importlib.util
 import logging
 import os
 import sys
@@ -259,15 +260,22 @@ def _run(args):
             return 1
     elif args.command == "gui":
         try:
-            from . import gui  # Relative import
-
-            gui.main()
-        except ImportError:
-            print(
-                "GUI module not found. Please ensure 'gui.py' is part of the 'scadbatch' package.",
-                file=sys.stderr,
-            )
+            # Absolute, not `from . import gui`: in a frozen one-file build this module is
+            # __main__ and has no parent package, so a relative import cannot resolve.
+            from scadbatch import gui
+        except ImportError as e:
+            if importlib.util.find_spec("scadbatch.gui") is None:
+                # The module is not in this build at all, which is a packaging fault in a
+                # frozen binary rather than anything the user can install.
+                print(f"This build does not include the graphical interface: {e}", file=sys.stderr)
+            else:
+                print(
+                    f"The graphical interface is unavailable: {e}. It needs tkinter, which some "
+                    "Linux distributions package separately (try installing python3-tk).",
+                    file=sys.stderr,
+                )
             return 1
+        gui.main()  # outside the try, so a failure inside the GUI is not reported as this
     return 0
 
 

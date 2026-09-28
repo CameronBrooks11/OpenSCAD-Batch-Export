@@ -106,24 +106,31 @@ jobs:
         run: .\dist\scadbatch.exe --help
         if: runner.os == 'Windows'
 
-      - name: The frozen binaries must contain the GUI
-        # There is no display on the runner, so neither can actually open a window. What is
-        # checked is that the GUI module and its Tcl/Tk runtime were bundled at all: those
-        # are packaging faults, where "cannot open display" is expected here.
+      - name: The frozen binaries must open a window
+        # PyInstaller prints "Failed to execute script" for every unhandled exception, so
+        # matching on the output cannot tell a missing module from a missing display. Give
+        # the binaries a display instead: one that opens enters mainloop and never returns,
+        # so the timeout's 124 is the pass and any other exit status is a real fault.
         if: runner.os == 'Linux'
         run: |
-          cli=$(./dist/scadbatch gui 2>&1 || true)
-          echo "$cli"
-          if grep -q "does not include the graphical interface" <<<"$cli"; then
-            echo "::error::scadbatch.gui was not bundled into the CLI binary"
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb
+          check() {
+            rc=0
+            out=$(xvfb-run -a timeout 20 "$@" 2>&1) || rc=$?
+            echo "$out"
+            if [ "$rc" -eq 124 ]; then
+              return 0
+            fi
+            if grep -q "does not include the graphical interface" <<<"$out"; then
+              echo "::error::$*: scadbatch.gui was not bundled into the binary"
+            else
+              echo "::error::$*: exited with $rc instead of staying open"
+            fi
             exit 1
-          fi
-          gui=$(./dist/scadbatch-gui 2>&1 || true)
-          echo "$gui"
-          if grep -qE "Failed to execute script|ImportError|ModuleNotFoundError" <<<"$gui"; then
-            echo "::error::the GUI binary cannot start; its Tcl/Tk runtime is probably not bundled"
-            exit 1
-          fi
+          }
+          check ./dist/scadbatch gui
+          check ./dist/scadbatch-gui
 
       - name: Package (zip)
         if: runner.os == 'Windows'

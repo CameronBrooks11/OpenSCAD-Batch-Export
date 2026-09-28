@@ -104,7 +104,7 @@ Export STL files using either a CSV or JSON parameter file.
 **Command Structure:**
 
 ```
-openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad-path PATH] [--format EXT ...] [--export-format asciistl|binstl] [--select SELECTION] [-j N] [--skip-existing | --overwrite] [--dry-run] [--timeout SECONDS] [--summary PATH.json] [--name-template TEMPLATE]
+openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad-path PATH] [--format EXT ...] [--export-format asciistl|binstl] [--select SELECTION] [-j N] [--skip-existing | --overwrite] [--dry-run] [--timeout SECONDS] [--summary PATH.json] [--name-template TEMPLATE] [--encoding NAME]
 ```
 
 **Parameters:**
@@ -125,6 +125,7 @@ openscad-export export <scad_file> <parameter_file> <output_folder> [--openscad-
 - `--timeout SECONDS`: kill a case that runs longer than this; it is recorded as timed out and the batch continues.
 - `--summary PATH.json`: write a machine-readable record of the run — OpenSCAD path and version, the inputs, and for every case its status (`ok`, `failed`, `timeout`, `skipped`, `dry-run`), return code, duration, OpenSCAD message lines (`WARNING:`, `ECHO:`, `ERROR:`, `EXPORT-WARNING:`, ...) and the exact command line, plus the tool version and a UTC timestamp. Written for failed and dry runs too, so CI can check it in; the directory is created if needed.
 - `--name-template TEMPLATE`: how to name output files (without extension). Fields: `{name}` (the Customizer set name or `exported_filename`, else `model_<index>`), `{index}`, and any parameter, e.g. `{name}_d{diameter}` or `part_{index:03d}`. Names are always made filesystem-safe (`lid/large` becomes `lid_large`; the original set name still goes to OpenSCAD), and two cases producing the same file name are refused before anything runs.
+- `--encoding NAME`: text encoding of the parameter file. Defaults to UTF-8, tolerating the byte-order mark Excel writes; pass e.g. `cp1252` for a spreadsheet export that is not UTF-8. Files this tool writes are always UTF-8.
 - `--select SELECTION`: Select specific parameter sets to export using indices and ranges. Format examples: `'0-5'`, `'1-3,7,10-12'`, `'2,4'`. Indices are zero-based.
 
 **Examples:**
@@ -164,8 +165,10 @@ Convert a CSV parameter file to JSON format compatible with OpenSCAD's customize
 **Command Structure:**
 
 ```
-openscad-export csv2json <csv_file> <json_file>
+openscad-export csv2json <csv_file> <json_file> [--encoding NAME]
 ```
+
+Values are read with the same rules the exporter uses, so a cell means the same thing either way. A vector is stored as an OpenSCAD literal in a string, because OpenSCAD ignores a JSON array; nested vectors, ranges and `undef` are warned about, since current OpenSCAD builds ignore those in a parameter-set file and keep the model's default (export the CSV directly to apply them).
 
 **Example:**
 
@@ -180,7 +183,7 @@ Convert a JSON parameter file back to CSV format.
 **Command Structure:**
 
 ```
-openscad-export json2csv <json_file> <csv_file>
+openscad-export json2csv <json_file> <csv_file> [--encoding NAME]
 ```
 
 **Example:**
@@ -193,7 +196,8 @@ openscad-export json2csv examples/sign/sign.json examples/sign/sign_converted.cs
 
 - The CSV file should have a header row with parameter names.
 - Each subsequent row defines a set of parameters for the OpenSCAD model.
-- An `exported_filename` column names the output files; without it files are named `model_<index>`, or use `--name-template`. Names are made filesystem-safe automatically.
+- An `exported_filename` column names the output files; without it files are named `model_<index>`, or use `--name-template`. Names are made filesystem-safe automatically, and two rows may not share a name.
+- Files are read as UTF-8 (a byte-order mark is tolerated) and written as UTF-8. For a spreadsheet export in another encoding, pass `--encoding`; note that Excel's "Unicode text" export is UTF-16 **and tab-separated**, which this tool does not read — save as "CSV UTF-8" instead.
 
 **Example CSV file (`simpleCube.csv`):**
 

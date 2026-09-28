@@ -12,7 +12,7 @@ import os
 import sys
 
 from openscad_export.engine import OpenSCADError
-from openscad_export.params import csv_to_json, json_to_csv
+from openscad_export.params import DEFAULT_ENCODING, csv_to_json, json_to_csv
 from openscad_export.runner import batch_export
 
 
@@ -122,6 +122,15 @@ def parse_arguments(argv=None):
         help="Skip a case whose output file already exists.",
     )
     export_parser.add_argument(
+        "--encoding",
+        metavar="NAME",
+        help=(
+            "Text encoding of the parameter file. Defaults to UTF-8, tolerating the "
+            "byte-order mark Excel writes; pass e.g. cp1252 for a spreadsheet export that "
+            "is not UTF-8."
+        ),
+    )
+    export_parser.add_argument(
         "--name-template",
         metavar="TEMPLATE",
         help=(
@@ -155,11 +164,17 @@ def parse_arguments(argv=None):
     csv2json_parser = subparsers.add_parser("csv2json", help="Convert CSV parameter file to JSON.")
     csv2json_parser.add_argument("csv_file", help="Path to the CSV file.")
     csv2json_parser.add_argument("json_file", help="Path to the output JSON file.")
+    csv2json_parser.add_argument(
+        "--encoding", metavar="NAME", help="Text encoding of the CSV file. Defaults to UTF-8."
+    )
 
     # json2csv subcommand
     json2csv_parser = subparsers.add_parser("json2csv", help="Convert JSON parameter file to CSV.")
     json2csv_parser.add_argument("json_file", help="Path to the JSON file.")
     json2csv_parser.add_argument("csv_file", help="Path to the output CSV file.")
+    json2csv_parser.add_argument(
+        "--encoding", metavar="NAME", help="Text encoding of the JSON file. Defaults to UTF-8."
+    )
 
     # GUI subcommand
     subparsers.add_parser("gui", help="Launch the graphical user interface.")
@@ -218,6 +233,7 @@ def _run(args):
                 dry_run=args.dry_run,
                 timeout=args.timeout,
                 name_template=args.name_template,
+                encoding=args.encoding,
             )
         except (OpenSCADError, ValueError) as e:
             print(f"Error: {e}", file=sys.stderr)
@@ -233,10 +249,11 @@ def _run(args):
         return 1 if result.failures else 0
     if args.command in ("csv2json", "json2csv"):
         try:
+            encoding = args.encoding or DEFAULT_ENCODING
             if args.command == "csv2json":
-                csv_to_json(args.csv_file, args.json_file)
+                csv_to_json(args.csv_file, args.json_file, encoding)
             else:
-                json_to_csv(args.json_file, args.csv_file)
+                json_to_csv(args.json_file, args.csv_file, encoding)
         except (ValueError, TypeError) as e:
             print(f"Error: {e}", file=sys.stderr)
             return 1

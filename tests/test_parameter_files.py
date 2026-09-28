@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from openscad_export.params import csv_to_json, json_to_csv, read_json
+from openscad_export.params import csv_to_json, json_to_csv, read_csv, read_json
 
 EXAMPLES = Path(__file__).resolve().parent.parent / "examples"
 EXAMPLE_NAMES = sorted(p.name for p in EXAMPLES.iterdir() if (p / f"{p.name}.csv").exists())
@@ -86,3 +86,13 @@ def test_example_csv_survives_round_trip(name, tmp_path):
             # Booleans are normalised to lowercase; everything else must survive verbatim.
             expected = value.lower() if value.lower() in ("true", "false") else value
             assert restored[key][column] == expected, (key, column)
+
+
+def test_a_newline_inside_a_quoted_cell_is_preserved(tmp_path):
+    """The reader must not translate line endings, or a multi-line cell loses its \r."""
+    src = tmp_path / "p.csv"
+    src.write_bytes(b'exported_filename,note\r\nrow,"first\r\nsecond"\r\n')
+
+    (row,) = read_csv(src)
+
+    assert row["note"] == "first\r\nsecond"

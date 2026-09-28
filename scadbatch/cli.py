@@ -11,9 +11,9 @@ import logging
 import os
 import sys
 
-from openscad_export.engine import OpenSCADError
-from openscad_export.params import DEFAULT_ENCODING, csv_to_json, json_to_csv
-from openscad_export.runner import batch_export
+from scadbatch.engine import OpenSCADError
+from scadbatch.params import DEFAULT_ENCODING, csv_to_json, json_to_csv
+from scadbatch.runner import batch_export
 
 
 def parse_arguments(argv=None):
@@ -190,7 +190,7 @@ def main(argv=None):
         int: Process exit code. Non-zero if any export failed or the input was invalid.
     """
     args = parse_arguments(argv)
-    logger = logging.getLogger("openscad_export")
+    logger = logging.getLogger("scadbatch")
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(logging.Formatter("%(message)s"))
     logger.addHandler(handler)
@@ -264,8 +264,7 @@ def _run(args):
             gui.main()
         except ImportError:
             print(
-                "GUI module not found. "
-                "Please ensure 'gui.py' is part of the 'openscad_export' package.",
+                "GUI module not found. Please ensure 'gui.py' is part of the 'scadbatch' package.",
                 file=sys.stderr,
             )
             return 1

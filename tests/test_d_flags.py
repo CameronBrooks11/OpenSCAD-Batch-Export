@@ -1,6 +1,6 @@
 import pytest
 
-from openscad_export.params import ScadRange, coerce_cell, construct_d_flags, to_scad_literal
+from scadbatch.params import ScadRange, coerce_cell, construct_d_flags, to_scad_literal
 
 
 @pytest.mark.parametrize(

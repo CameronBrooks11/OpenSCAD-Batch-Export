@@ -3,9 +3,9 @@ import os
 
 import pytest
 
-from openscad_export import batch_export
-from openscad_export.cli import main
-from openscad_export.runner import format_command
+from scadbatch import batch_export
+from scadbatch.cli import main
+from scadbatch.runner import format_command
 
 SCAD = "model.scad"
 
@@ -39,7 +39,7 @@ def test_skip_existing_leaves_present_outputs_alone(fake_openscad, params_csv, t
     stale = out / "first.stl"
     stale.write_text("stale")
 
-    with caplog.at_level(logging.INFO, logger="openscad_export"):
+    with caplog.at_level(logging.INFO, logger="scadbatch"):
         result = run(fake_openscad, params_csv, out, skip_existing=True)
 
     assert stale.read_text() == "stale"  # untouched
@@ -92,7 +92,7 @@ def test_dry_run_runs_nothing_and_creates_nothing(
     probe = tmp_path / "probe.log"
     monkeypatch.setenv("FAKE_OPENSCAD_LOG", str(probe))
 
-    with caplog.at_level(logging.INFO, logger="openscad_export"):
+    with caplog.at_level(logging.INFO, logger="scadbatch"):
         result = run(fake_openscad, params_csv, out, dry_run=True)
 
     assert not out.exists()
@@ -117,7 +117,7 @@ def test_dry_run_command_line_is_shell_pasteable(fake_openscad, tmp_path, caplog
     csv = tmp_path / "p.csv"
     csv.write_text('exported_filename,label,pts\nrow,hello world,"[1, 2]"\n')
 
-    with caplog.at_level(logging.INFO, logger="openscad_export"):
+    with caplog.at_level(logging.INFO, logger="scadbatch"):
         result = run(fake_openscad, str(csv), tmp_path / "o", dry_run=True)
 
     printed = caplog.text.split("Would run: ", 1)[1].splitlines()[0]

@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-from openscad_export.cli import main
+from scadbatch.cli import main
 
 
 @pytest.fixture

@@ -1,12 +1,12 @@
-import openscad_export
-from openscad_export import cli, export, params, runner
+import scadbatch
+from scadbatch import cli, export, params, runner
 
 
 def test_package_exposes_the_documented_api():
-    for name in openscad_export.__all__:
-        assert callable(getattr(openscad_export, name)), name  # classes are callable too
-    assert openscad_export.batch_export is runner.batch_export
-    assert openscad_export.parse_selection is params.parse_selection
+    for name in scadbatch.__all__:
+        assert callable(getattr(scadbatch, name)), name  # classes are callable too
+    assert scadbatch.batch_export is runner.batch_export
+    assert scadbatch.parse_selection is params.parse_selection
 
 
 def test_legacy_export_module_still_exposes_every_old_name():

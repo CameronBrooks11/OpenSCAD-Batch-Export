@@ -2,8 +2,8 @@ import logging
 
 import pytest
 
-from openscad_export import batch_export, output_name, sanitize_filename
-from openscad_export.cli import main
+from scadbatch import batch_export, output_name, sanitize_filename
+from scadbatch.cli import main
 
 SCAD = "model.scad"
 
@@ -108,7 +108,7 @@ def test_unsafe_set_name_is_sanitised_for_the_file_but_not_for_openscad(
     sets.write_text('{"parameterSets": {"lid/large": {"d": "10"}, "CON": {"d": "12"}}}')
     out = tmp_path / "o"
 
-    with caplog.at_level(logging.WARNING, logger="openscad_export"):
+    with caplog.at_level(logging.WARNING, logger="scadbatch"):
         result = run(fake_openscad, str(sets), out)
 
     assert sorted(p.name for p in out.iterdir()) == ["CON_.stl", "lid_large.stl"]

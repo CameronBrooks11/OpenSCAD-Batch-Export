@@ -3,14 +3,14 @@ parameter sets."""
 
 import logging
 
-from openscad_export.engine import (
+from scadbatch.engine import (
     Engine,
     OpenSCADError,
     OpenSCADNotFound,
     detect_engine,
     find_openscad,
 )
-from openscad_export.params import (
+from scadbatch.params import (
     ScadRange,
     coerce_cell,
     construct_d_flags,
@@ -24,7 +24,7 @@ from openscad_export.params import (
     sanitize_filename,
     to_scad_literal,
 )
-from openscad_export.runner import BatchResult, ExportResult, batch_export
+from scadbatch.runner import BatchResult, ExportResult, batch_export
 
 # Library consumers configure logging themselves; without this, ERROR records would
 # reach stderr through logging.lastResort.

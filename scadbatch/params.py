@@ -11,7 +11,7 @@ import os
 import re
 from typing import NamedTuple
 
-log = logging.getLogger("openscad_export")
+log = logging.getLogger("scadbatch")
 
 DEFAULT_ENCODING = "utf-8-sig"
 """How parameter files are read: UTF-8, tolerating the byte-order mark Excel writes.

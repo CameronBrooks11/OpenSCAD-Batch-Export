@@ -1,14 +1,14 @@
 """Compatibility shim.
 
-The implementation moved to :mod:`openscad_export.params`, :mod:`openscad_export.runner`
-and :mod:`openscad_export.cli`. This module re-exports the old names so existing imports
-and ``python -m openscad_export.export`` keep working.
+The implementation moved to :mod:`scadbatch.params`, :mod:`scadbatch.runner`
+and :mod:`scadbatch.cli`. This module re-exports the old names so existing imports
+and ``python -m scadbatch.export`` keep working.
 """
 
 import sys
 
-from openscad_export.cli import main, parse_arguments
-from openscad_export.params import (
+from scadbatch.cli import main, parse_arguments
+from scadbatch.params import (
     construct_d_flags,
     csv_to_json,
     json_to_csv,
@@ -17,7 +17,7 @@ from openscad_export.params import (
     read_json,
     read_parameters,
 )
-from openscad_export.runner import (
+from scadbatch.runner import (
     BatchResult,
     ExportResult,
     batch_export,

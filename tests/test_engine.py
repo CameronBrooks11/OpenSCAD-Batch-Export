@@ -4,8 +4,8 @@ import sys
 
 import pytest
 
-from openscad_export import engine
-from openscad_export.engine import (
+from scadbatch import engine
+from scadbatch.engine import (
     Engine,
     OpenSCADError,
     OpenSCADNotFound,

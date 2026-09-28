@@ -10,7 +10,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 
-log = logging.getLogger("openscad_export")
+log = logging.getLogger("scadbatch")
 
 ENV_VAR = "OPENSCAD"
 

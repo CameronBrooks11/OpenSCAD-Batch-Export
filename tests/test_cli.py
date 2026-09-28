@@ -186,3 +186,61 @@ def test_interrupt_exits_130(fake_openscad, params_csv, tmp_path, monkeypatch, c
 
     assert code == 130
     assert "Interrupted." in capsys.readouterr().err
+
+
+def test_gui_subcommand_launches_the_gui(monkeypatch):
+    """The import must be absolute: in a frozen build cli is __main__ and has no parent
+    package, so `from . import gui` cannot resolve and the GUI looks unavailable."""
+    import scadbatch.gui
+
+    launched = []
+    monkeypatch.setattr(scadbatch.gui, "main", lambda: launched.append(True))
+
+    assert main(["gui"]) == 0
+    assert launched == [True]
+
+
+def test_gui_subcommand_reports_a_build_without_the_gui(monkeypatch, capsys):
+    """A frozen binary that did not bundle scadbatch.gui is a packaging fault, and must not
+    be reported as something the user can install."""
+    import builtins
+    import importlib.util
+
+    real_import = builtins.__import__
+
+    def no_gui(name, *args, **kwargs):
+        if name in ("scadbatch", "scadbatch.gui") and "gui" in (args[2] or ()) if args else False:
+            raise ImportError("No module named 'scadbatch.gui'")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", no_gui)
+    monkeypatch.setattr(importlib.util, "find_spec", lambda name: None)
+
+    code = main(["gui"])
+
+    captured = capsys.readouterr()
+    assert code == 1
+    assert "does not include the graphical interface" in captured.err
+    assert "python3-tk" not in captured.err  # not the user's to fix
+
+
+def test_gui_subcommand_reports_a_missing_tkinter(monkeypatch, capsys):
+    import builtins
+
+    real_import = builtins.__import__
+
+    def no_gui(name, *args, **kwargs):
+        if name == "scadbatch" and args and "gui" in (args[2] or ()):
+            raise ImportError("No module named 'tkinter'")
+        if name == "scadbatch.gui":
+            raise ImportError("No module named 'tkinter'")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", no_gui)
+
+    code = main(["gui"])
+
+    captured = capsys.readouterr()
+    assert code == 1
+    assert "graphical interface is unavailable" in captured.err
+    assert "tkinter" in captured.err and "python3-tk" in captured.err

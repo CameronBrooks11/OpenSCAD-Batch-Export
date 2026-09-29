@@ -96,3 +96,50 @@ def test_a_newline_inside_a_quoted_cell_is_preserved(tmp_path):
     (row,) = read_csv(src)
 
     assert row["note"] == "first\r\nsecond"
+
+
+def test_a_row_with_more_cells_than_the_header_is_rejected(tmp_path):
+    """Absorbing the extra cell invents a parameter named for csv.DictReader's restkey."""
+    src = tmp_path / "p.csv"
+    src.write_text("exported_filename,d\nr,1,2\n")
+
+    with pytest.raises(ValueError) as excinfo:
+        read_csv(src)
+
+    message = str(excinfo.value)
+    assert "line 2" in message
+    assert "3 cells" in message and "2 columns" in message
+
+
+def test_a_row_with_fewer_cells_than_the_header_is_rejected(tmp_path):
+    """Filling the gap makes the parameter undef, which is a value the user did not write."""
+    src = tmp_path / "p.csv"
+    src.write_text("exported_filename,d,h\nu\n")
+
+    with pytest.raises(ValueError) as excinfo:
+        read_csv(src)
+
+    assert "1 cell but the header has 3 columns" in str(excinfo.value)
+
+
+def test_the_reported_line_counts_blank_lines_and_multi_line_cells(tmp_path):
+    """The number has to send the user to the right line of their file, not the right row."""
+    src = tmp_path / "p.csv"
+    src.write_text('exported_filename,note\n\nok,"first\nsecond"\nbad,x,y\n')
+
+    with pytest.raises(ValueError, match="line 5"):
+        read_csv(src)
+
+
+def test_a_file_of_only_a_header_reads_as_no_parameter_sets(tmp_path):
+    src = tmp_path / "p.csv"
+    src.write_text("exported_filename,d\n")
+
+    assert read_csv(src) == []
+
+
+def test_an_empty_file_reads_as_no_parameter_sets(tmp_path):
+    src = tmp_path / "p.csv"
+    src.write_text("")
+
+    assert read_csv(src) == []

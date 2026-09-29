@@ -46,6 +46,9 @@ def read_csv(csv_path, encoding=DEFAULT_ENCODING):
     """
     Read parameters from a CSV file.
 
+    Every row must have one cell per header column. Blank lines are skipped, before the
+    header as well as after it; a line of only whitespace is not blank, it is one cell.
+
     Args:
         csv_path (str): Path to the CSV file.
         encoding (str): Text encoding of the file; UTF-8 with an optional byte-order mark
@@ -55,10 +58,39 @@ def read_csv(csv_path, encoding=DEFAULT_ENCODING):
         list of dict: List of parameter dictionaries.
 
     Raises:
-        ValueError: If the file is not text in that encoding.
+        ValueError: If the file is not text in that encoding, or a row does not have one
+            cell per header column.
     """
-    reader = csv.DictReader(io.StringIO(_read_text(csv_path, encoding), newline=""))
-    return list(reader)
+    # csv.DictReader is not used here because it absorbs a ragged row instead of
+    # reporting one: extra cells land under restkey, which is None and reaches OpenSCAD
+    # as a parameter of that name, and missing cells become restval, which serializes to
+    # undef. Both silently change the model the user asked for.
+    reader = csv.reader(io.StringIO(_read_text(csv_path, encoding), newline=""))
+    header = next((row for row in reader if row), None)
+    if header is None:
+        return []
+    rows = []
+    line = reader.line_num
+    for row in reader:
+        start, line = line + 1, reader.line_num
+        if not row:
+            continue
+        if len(row) != len(header):
+            hint = (
+                "check for a stray comma at the end of the row, and quote any cell that "
+                "contains one"
+                if len(row) > len(header)
+                else "check for a stray comma at the end of the header, and leave a cell "
+                "empty rather than omitting it"
+            )
+            raise ValueError(
+                f"{csv_path} line {start}: this row has {len(row)} "
+                f"cell{'' if len(row) == 1 else 's'} but the header has {len(header)} "
+                f"column{'' if len(header) == 1 else 's'}, so it is not clear which value belongs "
+                f"to which parameter. Give every row one cell per column; {hint}."
+            )
+        rows.append(dict(zip(header, row, strict=True)))
+    return rows
 
 
 def read_json(json_path, encoding=DEFAULT_ENCODING):
@@ -162,8 +194,8 @@ def read_parameters(parameter_file, encoding=DEFAULT_ENCODING):
         list of dict: List of parameter dictionaries.
 
     Raises:
-        ValueError: If the file extension is not .csv or .json, or the file is not text
-            in that encoding.
+        ValueError: If the file extension is not .csv or .json, the file is not text in
+            that encoding, or a CSV row does not have one cell per header column.
     """
     ext = os.path.splitext(str(parameter_file))[1].lower()
     if ext == ".csv":

@@ -195,7 +195,7 @@ scadbatch json2csv examples/sign/sign.json examples/sign/sign_converted.csv
 ## CSV File Structure
 
 - The CSV file should have a header row with parameter names.
-- Each subsequent row defines a set of parameters for the OpenSCAD model.
+- Each subsequent row defines a set of parameters for the OpenSCAD model, with one cell per header column. A row with more or fewer cells is rejected by line number, rather than guessed at.
 - An `exported_filename` column names the output files; without it files are named `model_<index>`, or use `--name-template`. Names are made filesystem-safe automatically, and two rows may not share a name.
 - Files are read as UTF-8 (a byte-order mark is tolerated) and written as UTF-8. For a spreadsheet export in another encoding, pass `--encoding`; note that Excel's "Unicode text" export is UTF-16 **and tab-separated**, which this tool does not read — save as "CSV UTF-8" instead.
 

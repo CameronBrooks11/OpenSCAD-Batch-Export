@@ -46,7 +46,8 @@ def read_csv(csv_path, encoding=DEFAULT_ENCODING):
     """
     Read parameters from a CSV file.
 
-    Every row must have one cell per header column. Blank lines are skipped.
+    Every row must have one cell per header column. Blank lines are skipped, before the
+    header as well as after it; a line of only whitespace is not blank, it is one cell.
 
     Args:
         csv_path (str): Path to the CSV file.
@@ -65,7 +66,7 @@ def read_csv(csv_path, encoding=DEFAULT_ENCODING):
     # as a parameter of that name, and missing cells become restval, which serializes to
     # undef. Both silently change the model the user asked for.
     reader = csv.reader(io.StringIO(_read_text(csv_path, encoding), newline=""))
-    header = next(reader, None)
+    header = next((row for row in reader if row), None)
     if header is None:
         return []
     rows = []
@@ -76,9 +77,11 @@ def read_csv(csv_path, encoding=DEFAULT_ENCODING):
             continue
         if len(row) != len(header):
             hint = (
-                "quote any cell that contains a comma"
+                "check for a stray comma at the end of the row, and quote any cell that "
+                "contains one"
                 if len(row) > len(header)
-                else "leave a cell empty rather than omitting it"
+                else "check for a stray comma at the end of the header, and leave a cell "
+                "empty rather than omitting it"
             )
             raise ValueError(
                 f"{csv_path} line {start}: this row has {len(row)} "

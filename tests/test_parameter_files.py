@@ -122,6 +122,14 @@ def test_a_row_with_fewer_cells_than_the_header_is_rejected(tmp_path):
     assert "1 cell but the header has 3 columns" in str(excinfo.value)
 
 
+def test_blank_lines_before_the_header_are_skipped(tmp_path):
+    """Taking a blank first line as the header reports every row against zero columns."""
+    src = tmp_path / "p.csv"
+    src.write_text("\n\nexported_filename,d\na,1\n")
+
+    assert read_csv(src) == [{"exported_filename": "a", "d": "1"}]
+
+
 def test_the_reported_line_counts_blank_lines_and_multi_line_cells(tmp_path):
     """The number has to send the user to the right line of their file, not the right row."""
     src = tmp_path / "p.csv"

@@ -155,7 +155,7 @@ def test_to_dict_records_engine_inputs_and_every_case(
     assert doc["inputs"]["jobs"] == 1 and doc["inputs"]["timeout"] == 30
     assert doc["inputs"]["skip_existing"] is True
     assert doc["dry_run"] is False
-    assert doc["counts"] == {"ok": 1, "failed": 2, "timeout": 0, "skipped": 1}
+    assert doc["counts"] == {"ok": 1, "failed": 2, "timeout": 0, "skipped": 1, "errors": 0}
     assert doc["started_at"].endswith("+00:00")  # ISO 8601, UTC
     assert "openscad_batch_export" in doc  # tool version (None when not installed)
     statuses = [(r["name"], r["format"], r["status"]) for r in doc["results"]]
@@ -225,7 +225,7 @@ def test_cli_summary_flag_writes_the_json_record(fake_openscad, params_csv, tmp_
 
     assert code == 1  # one case fails; the summary is still written
     doc = json.loads(summary.read_text())
-    assert doc["counts"] == {"ok": 1, "failed": 1, "timeout": 0, "skipped": 0}
+    assert doc["counts"] == {"ok": 1, "failed": 1, "timeout": 0, "skipped": 0, "errors": 0}
     assert doc["openscad"]["version"] == "2021.01"
     assert f"Summary written to {summary}" in capsys.readouterr().out
 
@@ -271,6 +271,133 @@ def test_error_class_lines_are_captured_on_a_successful_export(
     assert "ERROR: Can't read font" in result.summary()
 
 
+# --- errors reported with exit 0 -----------------------------------------------------
+
+
+def one_row_csv(tmp_path):
+    csv = tmp_path / "one.csv"
+    csv.write_text("exported_filename,size,fail\nonly,5,false\n")
+    return str(csv)
+
+
+def test_an_error_printed_with_exit_0_is_counted_and_given_its_own_section(
+    fake_openscad, tmp_path, monkeypatch
+):
+    """The case OpenSCAD drops a parameter set on: the geometry is wrong and it exits 0."""
+    monkeypatch.setenv(
+        "FAKE_OPENSCAD_STDERR",
+        "ERROR: Cannot open Parameter Set 'p.json' for reading|WARNING: variable x is unused",
+    )
+
+    result = run(fake_openscad, one_row_csv(tmp_path), tmp_path / "o")
+
+    (only,) = result.results
+    assert only.status == "ok" and only.returncode == 0  # the whole point: OpenSCAD exited 0
+    assert only.errors == ["ERROR: Cannot open Parameter Set 'p.json' for reading"]
+    assert result.with_errors == [only] and result.failures == []
+    assert result.to_dict()["counts"]["errors"] == 1
+
+    text = result.summary()
+    assert "OpenSCAD reported an error in 1 case(s):" in text
+    assert "      ERROR: Cannot open Parameter Set 'p.json' for reading" in text
+
+
+def test_an_error_line_is_not_also_left_in_the_warnings_section(
+    fake_openscad, tmp_path, monkeypatch
+):
+    monkeypatch.setenv(
+        "FAKE_OPENSCAD_STDERR", "ERROR: Cannot open Parameter Set 'p.json'|WARNING: x is unused"
+    )
+
+    text = run(fake_openscad, one_row_csv(tmp_path), tmp_path / "o").summary()
+
+    warnings_section = text.split("OpenSCAD warnings from", 1)[1]
+    assert "WARNING: x is unused" in warnings_section
+    assert "ERROR:" not in warnings_section
+
+
+def test_every_error_group_counts_and_no_warning_group_does(fake_openscad, tmp_path, monkeypatch):
+    """The groups OpenSCAD prints are its own taxonomy; a consumer should not have to know
+    it to gate on an error."""
+    monkeypatch.setenv(
+        "FAKE_OPENSCAD_STDERR",
+        "ERROR: a|PARSER-ERROR: b|UI-ERROR: c|EXPORT-ERROR: d"
+        "|WARNING: e|UI-WARNING: f|EXPORT-WARNING: g|FONT-WARNING: h|DEPRECATED: i|ECHO: j",
+    )
+
+    (only,) = run(fake_openscad, one_row_csv(tmp_path), tmp_path / "o").results
+
+    assert only.errors == ["ERROR: a", "PARSER-ERROR: b", "UI-ERROR: c", "EXPORT-ERROR: d"]
+
+
+def test_a_failed_case_with_an_error_is_counted_too(
+    fake_openscad, params_csv, tmp_path, monkeypatch
+):
+    """counts.errors is about what OpenSCAD reported, not about how the case was classified,
+    so a consumer gating on it alone cannot miss a failure."""
+    monkeypatch.setenv("FAKE_OPENSCAD_STDERR", "ERROR: Cannot open Parameter Set 'p.json'")
+
+    result = run(fake_openscad, params_csv, tmp_path / "o")
+
+    assert [r.status for r in result.with_errors] == ["ok", "failed"]
+    assert result.to_dict()["counts"]["errors"] == 2
+    assert "  - " in result.summary() and "(failed):" in result.summary()
+
+
+def test_no_error_lines_means_no_error_section_and_a_zero_count(
+    fake_openscad, params_csv, tmp_path, monkeypatch
+):
+    monkeypatch.setenv("FAKE_OPENSCAD_STDERR", "WARNING: careful|ECHO: hi")
+
+    result = run(fake_openscad, params_csv, tmp_path / "o")
+
+    assert result.with_errors == []
+    assert result.to_dict()["counts"]["errors"] == 0
+    assert "OpenSCAD reported an error" not in result.summary()
+
+
+def test_the_json_record_carries_each_case_errors(fake_openscad, tmp_path, monkeypatch):
+    """So a consumer can find which case without re-implementing OpenSCAD's prefixes."""
+    monkeypatch.setenv("FAKE_OPENSCAD_STDERR", "ERROR: Cannot open Parameter Set 'p.json'|ECHO: hi")
+
+    doc = run(fake_openscad, one_row_csv(tmp_path), tmp_path / "o").to_dict()
+
+    assert doc["results"][0]["errors"] == ["ERROR: Cannot open Parameter Set 'p.json'"]
+    json.dumps(doc)
+
+
+def test_the_cli_still_exits_0_when_only_errors_were_reported(
+    fake_openscad, tmp_path, monkeypatch, capsys
+):
+    """Option 2 of #46: report the error, do not reclassify the case. A consumer that wants
+    to fail on it reads counts.errors; the exit code keeps its meaning."""
+    monkeypatch.setenv("FAKE_OPENSCAD_STDERR", "ERROR: Cannot open Parameter Set 'p.json'")
+    summary = tmp_path / "s.json"
+
+    code = main(cli_args(one_row_csv(tmp_path), tmp_path, fake_openscad, "--summary", str(summary)))
+
+    assert code == 0
+    assert "OpenSCAD reported an error in 1 case(s):" in capsys.readouterr().out
+    assert json.loads(summary.read_text())["counts"] == {
+        "ok": 1,
+        "failed": 0,
+        "timeout": 0,
+        "skipped": 0,
+        "errors": 1,
+    }
+
+
+def test_an_error_line_is_logged_at_error_level(fake_openscad, tmp_path, monkeypatch, caplog):
+    """A live run shows it as an error too, not as one more warning in the stream."""
+    monkeypatch.setenv("FAKE_OPENSCAD_STDERR", "ERROR: Cannot open Parameter Set 'p.json'")
+
+    with caplog.at_level(logging.WARNING, logger="scadbatch"):
+        run(fake_openscad, one_row_csv(tmp_path), tmp_path / "o")
+
+    (record,) = [r for r in caplog.records if "Cannot open Parameter Set" in r.getMessage()]
+    assert record.levelno == logging.ERROR
+
+
 def test_timeout_counts_and_status_in_the_json_record(fake_openscad, tmp_path, monkeypatch):
     csv = tmp_path / "p.csv"
     csv.write_text("exported_filename,size\nslow,1\n")
@@ -280,7 +407,7 @@ def test_timeout_counts_and_status_in_the_json_record(fake_openscad, tmp_path, m
         SCAD, str(csv), str(tmp_path / "o"), fake_openscad, "binstl", None, True, timeout=0.3
     ).to_dict()
 
-    assert doc["counts"] == {"ok": 0, "failed": 1, "timeout": 1, "skipped": 0}
+    assert doc["counts"] == {"ok": 0, "failed": 1, "timeout": 1, "skipped": 0, "errors": 0}
     assert doc["results"][0]["status"] == "timeout"
 
 

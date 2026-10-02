@@ -157,7 +157,9 @@ def parse_arguments(argv=None):
         metavar="PATH.json",
         help=(
             "Write a JSON record of the run: OpenSCAD version, inputs, and per-case "
-            "status, duration, return code, warnings and command line."
+            "status, duration, return code, warnings, errors and command line. counts.errors "
+            "is the number of cases OpenSCAD printed an error for, including cases it "
+            "exited 0 on."
         ),
     )
 

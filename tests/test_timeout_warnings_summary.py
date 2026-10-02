@@ -334,14 +334,18 @@ def test_a_failed_case_with_an_error_is_counted_too(
     fake_openscad, params_csv, tmp_path, monkeypatch
 ):
     """counts.errors is about what OpenSCAD reported, not about how the case was classified,
-    so a consumer gating on it alone cannot miss a failure."""
+    so a failed case with an error line is counted too. It is not a superset of failures:
+    most failures carry no error prefix at all, which is why the exit code still carries
+    them."""
     monkeypatch.setenv("FAKE_OPENSCAD_STDERR", "ERROR: Cannot open Parameter Set 'p.json'")
 
     result = run(fake_openscad, params_csv, tmp_path / "o")
 
     assert [r.status for r in result.with_errors] == ["ok", "failed"]
     assert result.to_dict()["counts"]["errors"] == 2
-    assert "  - " in result.summary() and "(failed):" in result.summary()
+    text = result.summary()
+    assert "OpenSCAD reported an error in 2 case(s):" in text
+    assert "(ok):" in text and "(failed):" in text
 
 
 def test_no_error_lines_means_no_error_section_and_a_zero_count(

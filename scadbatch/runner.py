@@ -97,6 +97,17 @@ class ExportResult:
     """The parameter set's own name (Customizer set name or exported_filename), unsanitised."""
 
     @property
+    def errors(self):
+        """The error lines among :attr:`warnings`.
+
+        OpenSCAD exits 0 on several errors -- a parameter set it could not open, a font it
+        could not read -- so a case can be ``ok`` and still have lines here. Which of them
+        invalidate the geometry is not decided: a dropped parameter set does, a substituted
+        font may not. They are reported rather than classified.
+        """
+        return [line for line in self.warnings if line.startswith(_ERROR_PREFIXES)]
+
+    @property
     def status(self):
         if self.skipped:
             return "skipped"
@@ -133,6 +144,15 @@ class BatchResult:
     def skipped(self):
         return [r for r in self.results if r.skipped]
 
+    @property
+    def with_errors(self):
+        """Cases whose OpenSCAD output contained an error line, in input order.
+
+        Not a subset of :attr:`failures`: OpenSCAD exits 0 on some errors, so a case here
+        may be reported ``ok``. That is the point of counting them separately.
+        """
+        return [r for r in self.results if r.errors]
+
     def to_dict(self):
         """JSON-serialisable record of the whole batch: engine, inputs, per-case results."""
         return {
@@ -149,6 +169,9 @@ class BatchResult:
                 "failed": len(self.failures),
                 "timeout": sum(r.timed_out for r in self.results),
                 "skipped": len(self.skipped),
+                # Cases OpenSCAD printed an error for, whatever their status. A run that
+                # gates on "ok" alone cannot see these; this is the field to gate on.
+                "errors": len(self.with_errors),
             },
             "results": [
                 {
@@ -162,6 +185,7 @@ class BatchResult:
                     "duration": r.duration,
                     "stderr": r.stderr,
                     "warnings": r.warnings,
+                    "errors": r.errors,
                     "command": r.command,
                 }
                 for r in self.results
@@ -202,10 +226,15 @@ class BatchResult:
         if self.failures:
             lines.append("Failed to export the following files:")
             lines.extend(f"  - {r.output_path}: {r.stderr}" for r in self.failures)
-        # Failed cases already show their full stderr above; ECHO/TRACE chatter stays in
-        # the per-case log and the JSON record.
+        if self.with_errors:
+            lines.append(f"OpenSCAD reported an error in {len(self.with_errors)} case(s):")
+            for r in self.with_errors:
+                lines.append(f"  - {r.output_path} ({r.status}):")
+                lines.extend(f"      {line}" for line in r.errors)
+        # Failed cases already show their full stderr above, errors have their own section,
+        # and ECHO/TRACE chatter stays in the per-case log and the JSON record.
         with_warnings = [
-            (r, [w for w in r.warnings if not w.startswith(_CHATTER_PREFIXES)])
+            (r, [w for w in r.warnings if not w.startswith(_CHATTER_PREFIXES + _ERROR_PREFIXES)])
             for r in self.results
             if r.ok
         ]
@@ -337,6 +366,9 @@ _DIAGNOSTIC_PREFIXES = (
     "FONT-WARNING:",
 )
 _CHATTER_PREFIXES = ("ECHO:", "TRACE:")
+# The groups that report something going wrong, as opposed to a warning OpenSCAD carries on
+# from. OpenSCAD still exits 0 for several of these.
+_ERROR_PREFIXES = ("ERROR:", "PARSER-ERROR:", "UI-ERROR:", "EXPORT-ERROR:")
 
 
 def build_command(openscad_path, scad_file, output_file, export_format, param_args, extra_args=()):
@@ -584,7 +616,12 @@ def batch_export(
                     timeout=timeout,
                 )
         for line in result.warnings:
-            level = logging.INFO if line.startswith(_CHATTER_PREFIXES) else logging.WARNING
+            if line.startswith(_CHATTER_PREFIXES):
+                level = logging.INFO
+            elif line.startswith(_ERROR_PREFIXES):
+                level = logging.ERROR
+            else:
+                level = logging.WARNING
             log.log(level, "%s: %s", result.output_path, line)
         if result.skipped or (result.ok and dry_run):
             pass  # already logged as skipped / "Would run"

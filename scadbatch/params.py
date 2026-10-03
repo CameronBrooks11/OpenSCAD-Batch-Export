@@ -29,12 +29,21 @@ def normalize_encoding(name):
 
     Raises:
         ValueError: If Python has no such codec, rather than the LookupError that
-            :func:`codecs.lookup` raises, so callers report it like any bad argument.
+            :func:`codecs.lookup` raises, so callers report it like any bad argument; or if
+            the name is a byte transform rather than a text encoding, which
+            :func:`codecs.lookup` accepts and no file can be read with.
     """
     try:
-        return codecs.lookup(name).name
+        info = codecs.lookup(name)
     except LookupError as e:
         raise ValueError(f"Unknown encoding {name!r}: Python has no such codec.") from e
+    try:
+        # codecs.lookup also answers for byte-to-byte codecs -- rot13, base64, hex, zlib --
+        # which no file can be read with. str.encode refuses exactly those.
+        "".encode(name)
+    except LookupError as e:
+        raise ValueError(f"Encoding {name!r} is a byte transform, not a text encoding.") from e
+    return info.name
 
 
 def is_utf8_encoding(name):

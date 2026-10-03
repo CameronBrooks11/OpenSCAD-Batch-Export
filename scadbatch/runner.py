@@ -559,8 +559,9 @@ def batch_export(
         # and export the wrong geometry.
         raise ValueError(
             f"OpenSCAD reads a parameter-set file as UTF-8 itself, so {encoding!r} cannot be "
-            f"honoured for {parameter_file}. Re-save it as UTF-8, or convert it with "
-            f"'json2csv --encoding {encoding}' and export the CSV instead."
+            f"honoured for {parameter_file}. Re-save it as UTF-8, or convert it to CSV "
+            f"first and export that: 'json2csv --encoding {encoding}' on the command line, "
+            f"the Convert JSON to CSV button in the GUI."
         )
     if use_parameter_sets:
         log.info("Passing parameter sets natively with -p/-P.")

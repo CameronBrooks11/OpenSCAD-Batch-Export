@@ -305,3 +305,15 @@ def test_an_unknown_encoding_name_is_an_error_not_a_traceback(
     assert code == 1
     assert "Unknown encoding 'bogus-8'" in captured.err
     assert "Traceback" not in captured.err
+
+
+def test_a_byte_transform_is_refused_like_an_unknown_encoding(tmp_path):
+    """codecs.lookup answers for rot13, base64, hex and zlib, so a check built on it alone
+    passes a name no file can be read with -- and the failure surfaces much later as
+    "'rot13' is not a text encoding"."""
+    src = tmp_path / "p.csv"
+    src.write_text("exported_filename,d\nrow,1\n", encoding="utf-8")
+
+    for name in ("rot13", "base64", "hex", "zlib"):
+        with pytest.raises(ValueError, match="byte transform, not a text encoding"):
+            read_parameters(src, name)

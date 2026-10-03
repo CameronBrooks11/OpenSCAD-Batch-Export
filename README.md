@@ -91,7 +91,7 @@ scadbatch gui
 From the GUI, you can:
 
 - Select your `.scad` file, parameter file (CSV or JSON), and output folder.
-- Set the parameter file's encoding when it is not UTF-8 — leave the field blank for the default, or give a codec name such as `cp1252` for a spreadsheet export. It applies to exports and to both conversions, matching `--encoding` on the command line.
+- Set the parameter file's encoding when it is not UTF-8 — leave the field blank for the default, or give a codec name such as `cp1252` for a spreadsheet export. One field serves the export and both conversions, which read different files, so each action names the encoding it used in the log. Files the tool writes are always UTF-8, whatever the field says.
 - Configure export settings like format, selection range, and sequential processing.
 - Monitor progress and view logs of the operation.
 - Convert between CSV and JSON parameter files.
@@ -200,7 +200,7 @@ scadbatch json2csv examples/sign/sign.json examples/sign/sign_converted.csv
 - The CSV file should have a header row with parameter names.
 - Each subsequent row defines a set of parameters for the OpenSCAD model, with one cell per header column. A row with more or fewer cells is rejected by line number, rather than guessed at.
 - An `exported_filename` column names the output files; without it files are named `model_<index>`, or use `--name-template`. Names are made filesystem-safe automatically, and two rows may not share a name.
-- Files are read as UTF-8 (a byte-order mark is tolerated) and written as UTF-8. For a spreadsheet export in another encoding, pass `--encoding`; note that Excel's "Unicode text" export is UTF-16 **and tab-separated**, which this tool does not read — save as "CSV UTF-8" instead.
+- Files are read as UTF-8 (a byte-order mark is tolerated) and written as UTF-8. For a spreadsheet export in another encoding, pass `--encoding` or fill in the GUI's Parameter File Encoding field; note that Excel's "Unicode text" export is UTF-16 **and tab-separated**, which this tool does not read — save as "CSV UTF-8" instead.
 
 **Example CSV file (`simpleCube.csv`):**
 

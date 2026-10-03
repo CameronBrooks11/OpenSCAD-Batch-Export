@@ -114,7 +114,8 @@ class OpenSCADBatchExporterGUI:
         self.state_widgets.append(self.encoding_entry)
         ttk.Label(
             input_frame,
-            text=f"blank = {DEFAULT_ENCODING}; e.g. cp1252 for an Excel export",
+            text=f"blank = {DEFAULT_ENCODING}; e.g. cp1252 for an Excel export. "
+            f"Applies to the conversions too.",
             foreground="gray",
         ).grid(row=2, column=2, columnspan=2, sticky=tk.W, padx=5, pady=5)
 
@@ -354,6 +355,12 @@ class OpenSCADBatchExporterGUI:
 
         Blank means the default, so a user who never touches the field gets UTF-8, the same
         as the command line without --encoding.
+
+        One field serves the export and both conversions, which act on files chosen
+        separately, so every action names the encoding it used as it starts and as it
+        finishes. Read as the wrong encoding, most files do not fail -- cp1252 has five
+        undefined bytes and decodes almost anything -- so a value left over from an earlier
+        file would otherwise be invisible.
         """
         name = self.parameter_encoding.get().strip()
         if not name:
@@ -377,9 +384,6 @@ class OpenSCADBatchExporterGUI:
         fmt = self.export_format.get()
         sel = self.selection.get()
         seq = self.sequential.get()
-        encoding = self.chosen_encoding()
-        if encoding is None:
-            return
 
         # Input validation
         if not scad or not os.path.isfile(scad):
@@ -402,11 +406,15 @@ class OpenSCADBatchExporterGUI:
                 messagebox.showerror("Error", "The selected OpenSCAD path is not executable.")
                 return
 
+        encoding = self.chosen_encoding()
+        if encoding is None:
+            return
+
         # Disable controls and reset progress
         self.disable_controls()
         self.progress["value"] = 0
         self.status_label.config(text="Status: Exporting...", foreground="green")
-        self.append_log("Starting batch export...")
+        self.append_log(f"Starting batch export, reading {param} as {encoding}...")
 
         # Start export in a separate thread to keep GUI responsive
         self.export_thread = threading.Thread(
@@ -483,7 +491,9 @@ class OpenSCADBatchExporterGUI:
 
         # Disable controls during conversion
         self.disable_controls()
-        self.append_log(f"Converting CSV to JSON: {csv_file} -> {json_file}")
+        self.append_log(
+            f"Converting CSV to JSON: {csv_file} -> {json_file} (reading as {encoding})"
+        )
         self.status_label.config(text="Status: Converting CSV to JSON...", foreground="orange")
 
         # Start conversion in a separate thread
@@ -502,8 +512,9 @@ class OpenSCADBatchExporterGUI:
         """
         try:
             csv_to_json(csv_file, json_file, encoding)
-            self.append_log("CSV to JSON conversion completed successfully.")
-            messagebox.showinfo("Success", "CSV to JSON conversion completed successfully.")
+            done = f"CSV to JSON conversion completed successfully, reading as {encoding}."
+            self.append_log(done)
+            messagebox.showinfo("Success", done)
         except Exception as e:
             self.append_log(f"Conversion failed: {str(e)}")
             messagebox.showerror("Error", f"CSV to JSON conversion failed:\n{str(e)}")
@@ -532,7 +543,9 @@ class OpenSCADBatchExporterGUI:
 
         # Disable controls during conversion
         self.disable_controls()
-        self.append_log(f"Converting JSON to CSV: {json_file} -> {csv_file}")
+        self.append_log(
+            f"Converting JSON to CSV: {json_file} -> {csv_file} (reading as {encoding})"
+        )
         self.status_label.config(text="Status: Converting JSON to CSV...", foreground="orange")
 
         # Start conversion in a separate thread
@@ -551,8 +564,9 @@ class OpenSCADBatchExporterGUI:
         """
         try:
             json_to_csv(json_file, csv_file, encoding)
-            self.append_log("JSON to CSV conversion completed successfully.")
-            messagebox.showinfo("Success", "JSON to CSV conversion completed successfully.")
+            done = f"JSON to CSV conversion completed successfully, reading as {encoding}."
+            self.append_log(done)
+            messagebox.showinfo("Success", done)
         except Exception as e:
             self.append_log(f"Conversion failed: {str(e)}")
             messagebox.showerror("Error", f"JSON to CSV conversion failed:\n{str(e)}")

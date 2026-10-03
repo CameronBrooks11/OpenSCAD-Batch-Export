@@ -216,7 +216,8 @@ def _read_text(path, encoding):
         raise ValueError(
             f"{path} is not valid {encoding} text ({e.reason} at byte {e.start}). Re-save it "
             f"as UTF-8, or give the encoding it actually uses (--encoding on the command "
-            f"line, the encoding argument of the API)."
+            f"line, the Parameter File Encoding field in the GUI, the encoding argument of "
+            f"the API)."
         ) from e
 
 

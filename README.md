@@ -91,6 +91,7 @@ scadbatch gui
 From the GUI, you can:
 
 - Select your `.scad` file, parameter file (CSV or JSON), and output folder.
+- Set the parameter file's encoding when it is not UTF-8 — leave the field blank for the default, or give a codec name such as `cp1252` for a spreadsheet export. It applies to exports and to both conversions, matching `--encoding` on the command line.
 - Configure export settings like format, selection range, and sequential processing.
 - Monitor progress and view logs of the operation.
 - Convert between CSV and JSON parameter files.

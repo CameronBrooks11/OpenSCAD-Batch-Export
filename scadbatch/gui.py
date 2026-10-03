@@ -25,6 +25,7 @@ from datetime import datetime
 from tkinter import filedialog, messagebox, ttk
 
 from scadbatch import batch_export, csv_to_json, json_to_csv
+from scadbatch.params import DEFAULT_ENCODING, normalize_encoding
 
 
 class OpenSCADBatchExporterGUI:
@@ -62,6 +63,7 @@ class OpenSCADBatchExporterGUI:
         # Variables
         self.scad_file = tk.StringVar()
         self.parameter_file = tk.StringVar()
+        self.parameter_encoding = tk.StringVar()
         self.output_folder = tk.StringVar()
         self.openscad_path = tk.StringVar(value="")
         self.export_format = tk.StringVar(value="binstl")
@@ -103,26 +105,39 @@ class OpenSCADBatchExporterGUI:
         param_browse_btn.grid(row=1, column=3, sticky=tk.W, padx=5, pady=5)
         self.state_widgets.append(param_browse_btn)
 
-        # Output Folder
-        ttk.Label(input_frame, text="Output Folder:").grid(
+        # Parameter File Encoding
+        ttk.Label(input_frame, text="Parameter File Encoding:").grid(
             row=2, column=0, sticky=tk.W, padx=5, pady=5
         )
+        self.encoding_entry = ttk.Entry(input_frame, textvariable=self.parameter_encoding)
+        self.encoding_entry.grid(row=2, column=1, sticky=tk.EW, padx=5, pady=5)
+        self.state_widgets.append(self.encoding_entry)
+        ttk.Label(
+            input_frame,
+            text=f"blank = {DEFAULT_ENCODING}; e.g. cp1252 for an Excel export",
+            foreground="gray",
+        ).grid(row=2, column=2, columnspan=2, sticky=tk.W, padx=5, pady=5)
+
+        # Output Folder
+        ttk.Label(input_frame, text="Output Folder:").grid(
+            row=3, column=0, sticky=tk.W, padx=5, pady=5
+        )
         self.output_entry = ttk.Entry(input_frame, textvariable=self.output_folder)
-        self.output_entry.grid(row=2, column=1, columnspan=2, sticky=tk.EW, padx=5, pady=5)
+        self.output_entry.grid(row=3, column=1, columnspan=2, sticky=tk.EW, padx=5, pady=5)
         self.state_widgets.append(self.output_entry)
         output_browse_btn = ttk.Button(input_frame, text="Browse", command=self.browse_output)
-        output_browse_btn.grid(row=2, column=3, sticky=tk.W, padx=5, pady=5)
+        output_browse_btn.grid(row=3, column=3, sticky=tk.W, padx=5, pady=5)
         self.state_widgets.append(output_browse_btn)
 
         # OpenSCAD Path
         ttk.Label(input_frame, text="OpenSCAD Path:").grid(
-            row=3, column=0, sticky=tk.W, padx=5, pady=5
+            row=4, column=0, sticky=tk.W, padx=5, pady=5
         )
         self.openscad_entry = ttk.Entry(input_frame, textvariable=self.openscad_path)
-        self.openscad_entry.grid(row=3, column=1, columnspan=2, sticky=tk.EW, padx=5, pady=5)
+        self.openscad_entry.grid(row=4, column=1, columnspan=2, sticky=tk.EW, padx=5, pady=5)
         self.state_widgets.append(self.openscad_entry)
         openscad_browse_btn = ttk.Button(input_frame, text="Browse", command=self.browse_openscad)
-        openscad_browse_btn.grid(row=3, column=3, sticky=tk.W, padx=5, pady=5)
+        openscad_browse_btn.grid(row=4, column=3, sticky=tk.W, padx=5, pady=5)
         self.state_widgets.append(openscad_browse_btn)
 
         # === Settings Section Frame ===
@@ -332,6 +347,24 @@ class OpenSCADBatchExporterGUI:
         """
         return os.path.isfile(path) and os.access(path, os.X_OK)
 
+    def chosen_encoding(self):
+        """
+        The encoding to read parameter files with, or None if the field does not name a
+        codec Python has -- in which case the user has already been told why.
+
+        Blank means the default, so a user who never touches the field gets UTF-8, the same
+        as the command line without --encoding.
+        """
+        name = self.parameter_encoding.get().strip()
+        if not name:
+            return DEFAULT_ENCODING
+        try:
+            normalize_encoding(name)
+        except ValueError as e:
+            messagebox.showerror("Error", str(e))
+            return None
+        return name
+
     def start_export(self):
         """
         Validate inputs and initiate the batch export process in a separate thread.
@@ -344,6 +377,9 @@ class OpenSCADBatchExporterGUI:
         fmt = self.export_format.get()
         sel = self.selection.get()
         seq = self.sequential.get()
+        encoding = self.chosen_encoding()
+        if encoding is None:
+            return
 
         # Input validation
         if not scad or not os.path.isfile(scad):
@@ -375,13 +411,13 @@ class OpenSCADBatchExporterGUI:
         # Start export in a separate thread to keep GUI responsive
         self.export_thread = threading.Thread(
             target=self.run_export,
-            args=(scad, param, output, openscad, fmt, sel, seq),
+            args=(scad, param, output, openscad, fmt, sel, seq, encoding),
             daemon=True,
         )
         self.export_thread.start()
         self.master.after(100, self.update_progress)
 
-    def run_export(self, scad, param, output, openscad, fmt, sel, seq):
+    def run_export(self, scad, param, output, openscad, fmt, sel, seq, encoding):
         """
         Execute the batch export process and handle exceptions.
 
@@ -393,6 +429,7 @@ class OpenSCADBatchExporterGUI:
             fmt (str): Export format ('asciistl' or 'binstl').
             sel (str): Selection string for parameter sets.
             seq (bool): Whether to process exports sequentially.
+            encoding (str): Text encoding of the parameter file.
         """
         handler = GuiLogHandler(self)
         logger = logging.getLogger("scadbatch")
@@ -400,7 +437,7 @@ class OpenSCADBatchExporterGUI:
         if logger.level == logging.NOTSET or logger.level > logging.INFO:
             logger.setLevel(logging.INFO)
         try:
-            result = batch_export(scad, param, output, openscad, fmt, sel, seq)
+            result = batch_export(scad, param, output, openscad, fmt, sel, seq, encoding=encoding)
             self.append_log(result.summary())
         except Exception as e:
             self.append_log(f"An error occurred: {str(e)}")
@@ -431,6 +468,9 @@ class OpenSCADBatchExporterGUI:
         Initiate the CSV to JSON conversion process.
         """
         # Prompt user to select CSV file
+        encoding = self.chosen_encoding()
+        if encoding is None:
+            return
         csv_file = filedialog.askopenfilename(filetypes=[("CSV Files", "*.csv")])
         if not csv_file:
             return
@@ -448,19 +488,20 @@ class OpenSCADBatchExporterGUI:
 
         # Start conversion in a separate thread
         threading.Thread(
-            target=self.run_csv_to_json, args=(csv_file, json_file), daemon=True
+            target=self.run_csv_to_json, args=(csv_file, json_file, encoding), daemon=True
         ).start()
 
-    def run_csv_to_json(self, csv_file, json_file):
+    def run_csv_to_json(self, csv_file, json_file, encoding):
         """
         Perform the CSV to JSON conversion and handle exceptions.
 
         Args:
             csv_file (str): Path to the input CSV file.
             json_file (str): Path to the output JSON file.
+            encoding (str): Text encoding of the CSV file. The JSON is written as UTF-8.
         """
         try:
-            csv_to_json(csv_file, json_file)
+            csv_to_json(csv_file, json_file, encoding)
             self.append_log("CSV to JSON conversion completed successfully.")
             messagebox.showinfo("Success", "CSV to JSON conversion completed successfully.")
         except Exception as e:
@@ -476,6 +517,9 @@ class OpenSCADBatchExporterGUI:
         Initiate the JSON to CSV conversion process.
         """
         # Prompt user to select JSON file
+        encoding = self.chosen_encoding()
+        if encoding is None:
+            return
         json_file = filedialog.askopenfilename(filetypes=[("JSON Files", "*.json")])
         if not json_file:
             return
@@ -493,19 +537,20 @@ class OpenSCADBatchExporterGUI:
 
         # Start conversion in a separate thread
         threading.Thread(
-            target=self.run_json_to_csv, args=(json_file, csv_file), daemon=True
+            target=self.run_json_to_csv, args=(json_file, csv_file, encoding), daemon=True
         ).start()
 
-    def run_json_to_csv(self, json_file, csv_file):
+    def run_json_to_csv(self, json_file, csv_file, encoding):
         """
         Perform the JSON to CSV conversion and handle exceptions.
 
         Args:
             json_file (str): Path to the input JSON file.
             csv_file (str): Path to the output CSV file.
+            encoding (str): Text encoding of the JSON file. The CSV is written as UTF-8.
         """
         try:
-            json_to_csv(json_file, csv_file)
+            json_to_csv(json_file, csv_file, encoding)
             self.append_log("JSON to CSV conversion completed successfully.")
             messagebox.showinfo("Success", "JSON to CSV conversion completed successfully.")
         except Exception as e:
